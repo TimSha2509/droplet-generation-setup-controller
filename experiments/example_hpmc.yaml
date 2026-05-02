@@ -1,0 +1,39 @@
+# Reference experiment. Copy and edit for new runs.
+experiment_id: HPMC_Test_01
+nozzle_id: 1mm_A
+
+actuation:
+  frequency_hz: 200            # Hz
+  voltage_v: 5                 # V
+  vibrometer_factor_um_per_v: 5280   # um per V
+
+# Each step holds the pump at speed_rpm for hold_s seconds.
+# Imaging duration per step is hold_s - timing.stabilization_s.
+ramp:
+  - { speed_rpm: 200, hold_s: 30 }
+  - { speed_rpm: 250, hold_s: 30 }
+  - { speed_rpm: 300, hold_s: 60 }
+  - { speed_rpm: 350, hold_s: 60 }
+  - { speed_rpm: 400, hold_s: 120 }
+
+timing:
+  stabilization_s: 10
+  image_interval_s: 5
+  camera_latency_tolerance_s: 1.0
+
+limits:
+  max_speed_rpm: 1000
+
+devices:
+  pump:
+    port: COM3
+    baudrate: 9600
+  oscilloscope:
+    visa_resource: "USB0::0x2A8D::0x1778::MY55440264::0::INSTR"
+  camera:
+    digicam_url: "http://localhost:5513"
+  scale:
+    enabled: false
+
+output:
+  base_dir: 'W:\PROMOTION_SHARIFSOLTANI_VERKAPSELUNG_DFG_TH1817_9_1_MT\PYTHON\Project_files\DATA'
