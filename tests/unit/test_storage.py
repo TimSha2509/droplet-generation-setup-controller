@@ -2,8 +2,6 @@ import csv
 import json
 from pathlib import Path
 
-import pytest
-
 from droplet_lab.storage import (
     ExperimentDirectory,
     OscilloscopeRow,
@@ -26,6 +24,7 @@ def test_utc_now_iso_format() -> None:
     assert "T" in s
     # parse round-trip
     from datetime import datetime
+
     datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 

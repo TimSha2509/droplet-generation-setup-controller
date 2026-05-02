@@ -34,7 +34,7 @@ class FakePump:
     def is_open(self) -> bool:
         return self._open
 
-    def __enter__(self) -> "FakePump":
+    def __enter__(self) -> FakePump:
         self._open = True
         return self
 
@@ -55,7 +55,7 @@ class FakePump:
         self._target_rpm = 0
 
     def get_actual_speed_rpm(self) -> int | None:
-        return int(round(self._actual_rpm))
+        return round(self._actual_rpm)
 
     def get_target_speed_rpm(self) -> int | None:
         return self._target_rpm

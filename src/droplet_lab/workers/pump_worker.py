@@ -30,7 +30,7 @@ class PumpWorker:
         *,
         pump: Pump,
         state: ExperimentState,
-        command_queue: "queue.Queue[SetSpeedCommand]",
+        command_queue: queue.Queue[SetSpeedCommand],
         stop_event: threading.Event,
         error_event: threading.Event,
         log_interval_s: float,

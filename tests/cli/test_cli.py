@@ -14,7 +14,11 @@ def _example_yaml(tmp_path: Path) -> Path:
         "nozzle_id": "1mm_A",
         "actuation": {"frequency_hz": 200, "voltage_v": 5, "vibrometer_factor_um_per_v": 5280},
         "ramp": [{"speed_rpm": 200, "hold_s": 0.3}],
-        "timing": {"stabilization_s": 0.05, "image_interval_s": 0.1, "camera_latency_tolerance_s": 0.05},
+        "timing": {
+            "stabilization_s": 0.05,
+            "image_interval_s": 0.1,
+            "camera_latency_tolerance_s": 0.05,
+        },
         "limits": {"max_speed_rpm": 1000},
         "devices": {
             "pump": {"port": "COM3"},
@@ -85,6 +89,7 @@ def test_new_command_creates_yaml(tmp_path: Path) -> None:
     assert target.exists()
     # The scaffolded file must validate
     from droplet_lab.config import load_experiment
+
     cfg = load_experiment(target)
     assert cfg.experiment_id
 

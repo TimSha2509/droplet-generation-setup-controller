@@ -1,11 +1,8 @@
 import threading
 from pathlib import Path
 
-import pytest
-
 from droplet_lab.devices.camera_fake import FakeCamera
 from droplet_lab.workers.camera_worker import (
-    CameraResult,
     CameraResultStatus,
     run_camera_capture,
 )
@@ -33,6 +30,7 @@ def test_aborts_on_stop_event(tmp_path: Path) -> None:
 
     def trip() -> None:
         import time
+
         time.sleep(0.1)
         stop.set()
 

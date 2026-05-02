@@ -20,7 +20,7 @@ class FakeScale:
         self._weight = 0.0
         self._open = False
 
-    def __enter__(self) -> "FakeScale":
+    def __enter__(self) -> FakeScale:
         self._open = True
         return self
 

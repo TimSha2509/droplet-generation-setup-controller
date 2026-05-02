@@ -23,12 +23,12 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import IO, Any, Iterator
-
+from typing import IO, Any
 
 _INVALID_FILENAME_CHARS = '<>:"/\\|?*'
 

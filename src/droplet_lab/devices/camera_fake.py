@@ -26,7 +26,7 @@ class FakeCamera:
         self._hang_after = hang_after_triggers
         self._hang_seconds = hang_seconds
 
-    def __enter__(self) -> "FakeCamera":
+    def __enter__(self) -> FakeCamera:
         self._open = True
         return self
 

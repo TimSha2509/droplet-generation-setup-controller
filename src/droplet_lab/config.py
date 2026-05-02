@@ -105,8 +105,7 @@ class ExperimentConfig(_StrictModel):
         for i, step in enumerate(self.ramp):
             if step.speed_rpm > max_rpm:
                 raise ValueError(
-                    f"ramp[{i}].speed_rpm={step.speed_rpm} exceeds "
-                    f"limits.max_speed_rpm={max_rpm}"
+                    f"ramp[{i}].speed_rpm={step.speed_rpm} exceeds limits.max_speed_rpm={max_rpm}"
                 )
         return self
 

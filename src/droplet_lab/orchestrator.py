@@ -262,9 +262,7 @@ class Orchestrator:
             return ExperimentStatus.FAILED
         return ExperimentStatus.ABORTED
 
-    def _initial_step_meta(
-        self, step_index: int, rpm: int, hold_s: float
-    ) -> dict[str, Any]:
+    def _initial_step_meta(self, step_index: int, rpm: int, hold_s: float) -> dict[str, Any]:
         return {
             "step_index": step_index,
             "set_speed_rpm": rpm,

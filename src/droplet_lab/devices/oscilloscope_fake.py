@@ -24,7 +24,7 @@ class FakeOscilloscope:
         self._noise = noise_amplitude
         self._open = False
 
-    def __enter__(self) -> "FakeOscilloscope":
+    def __enter__(self) -> FakeOscilloscope:
         self._open = True
         return self
 

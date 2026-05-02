@@ -30,9 +30,11 @@ def _run(
     state = ExperimentState()
     orch = Orchestrator(config=config, devices=devices, state=state)
     if stop_after_s is not None:
+
         def trip() -> None:
             time.sleep(stop_after_s)
             orch.request_stop()
+
         threading.Thread(target=trip).start()
     return orch.run()
 
@@ -73,7 +75,8 @@ def test_camera_failure_marks_experiment_failed(minimal_config: ExperimentConfig
     assert result.status is ExperimentStatus.FAILED
     steps = sorted((result.experiment_dir.root / "steps").iterdir())
     failed = [
-        s for s in steps
+        s
+        for s in steps
         if json.loads((s / "step.json").read_text())["status"] == StepStatus.CAMERA_FAILED.value
     ]
     assert len(failed) >= 1

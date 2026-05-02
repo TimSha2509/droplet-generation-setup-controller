@@ -168,13 +168,9 @@ def new(yaml_path: Path) -> None:
     cfg = ExperimentConfig(
         experiment_id=yaml_path.stem,
         nozzle_id="1mm_A",
-        actuation=ActuationConfig(
-            frequency_hz=200, voltage_v=5, vibrometer_factor_um_per_v=5280
-        ),
+        actuation=ActuationConfig(frequency_hz=200, voltage_v=5, vibrometer_factor_um_per_v=5280),
         ramp=[RampStep(speed_rpm=200, hold_s=30), RampStep(speed_rpm=300, hold_s=60)],
-        timing=TimingConfig(
-            stabilization_s=10, image_interval_s=5, camera_latency_tolerance_s=1.0
-        ),
+        timing=TimingConfig(stabilization_s=10, image_interval_s=5, camera_latency_tolerance_s=1.0),
         limits=LimitsConfig(max_speed_rpm=1000),
         devices=DevicesConfig(
             pump=PumpConfig(port="COM3"),
@@ -199,7 +195,7 @@ def list_devices() -> None:
 
         for p in list_ports.comports():
             typer.echo(f"  {p.device}  {p.description}")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         typer.echo(f"  (error: {e})")
 
     typer.echo("VISA resources:")
@@ -210,5 +206,5 @@ def list_devices() -> None:
         for r in rm.list_resources():
             typer.echo(f"  {r}")
         rm.close()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         typer.echo(f"  (error: {e})")

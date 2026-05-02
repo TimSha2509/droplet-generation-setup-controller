@@ -13,7 +13,6 @@ from types import TracebackType
 import serial
 from loguru import logger
 
-
 _LINE_RE = re.compile(r"^\s*(?P<sign>[+-])?\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>[a-zA-Z]*)?")
 
 
@@ -31,7 +30,7 @@ class SartoriusScale:
         self._ser: serial.Serial | None = None
         self._log = logger.bind(component="scale")
 
-    def __enter__(self) -> "SartoriusScale":
+    def __enter__(self) -> SartoriusScale:
         self._ser = serial.Serial(
             port=self._port,
             baudrate=self._baudrate,

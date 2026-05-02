@@ -3,6 +3,7 @@ from droplet_lab.devices.scale_fake import FakeScale
 
 def test_satisfies_protocol() -> None:
     from droplet_lab.devices.base import Scale
+
     s: Scale = FakeScale()
     assert s is not None
 

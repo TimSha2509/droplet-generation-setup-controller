@@ -7,6 +7,7 @@ from droplet_lab.devices.camera_fake import FakeCamera
 
 def test_satisfies_protocol() -> None:
     from droplet_lab.devices.base import Camera
+
     c: Camera = FakeCamera()
     assert c is not None
 
@@ -23,9 +24,8 @@ def test_trigger_writes_file(tmp_path: Path) -> None:
 
 
 def test_trigger_without_folder_raises() -> None:
-    with FakeCamera() as cam:
-        with pytest.raises(RuntimeError):
-            cam.trigger_capture()
+    with FakeCamera() as cam, pytest.raises(RuntimeError):
+        cam.trigger_capture()
 
 
 def test_can_be_configured_to_fail(tmp_path: Path) -> None:
@@ -40,6 +40,7 @@ def test_can_be_configured_to_fail(tmp_path: Path) -> None:
 
 def test_can_be_configured_to_hang(tmp_path: Path) -> None:
     import time
+
     cam = FakeCamera(hang_after_triggers=1, hang_seconds=0.2)
     with cam:
         cam.set_output_folder(tmp_path)

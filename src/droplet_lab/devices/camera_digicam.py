@@ -28,7 +28,7 @@ class DigiCamCamera:
         self._open = False
         self._log = logger.bind(component="camera")
 
-    def __enter__(self) -> "DigiCamCamera":
+    def __enter__(self) -> DigiCamCamera:
         self._open = True
         return self
 

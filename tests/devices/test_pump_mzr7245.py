@@ -36,16 +36,20 @@ def test_stop_writes_v0(fake_serial: MagicMock) -> None:
 
 def test_get_actual_speed_parses_int(fake_serial: MagicMock) -> None:
     fake_serial.read_all.return_value = b"199\r\n"
-    with patch("droplet_lab.devices.pump_mzr7245.serial.Serial", return_value=fake_serial):
-        with MZR7245Pump(port="COM3") as pump:
-            assert pump.get_actual_speed_rpm() == 199
+    with (
+        patch("droplet_lab.devices.pump_mzr7245.serial.Serial", return_value=fake_serial),
+        MZR7245Pump(port="COM3") as pump,
+    ):
+        assert pump.get_actual_speed_rpm() == 199
 
 
 def test_get_actual_speed_returns_none_on_garbage(fake_serial: MagicMock) -> None:
     fake_serial.read_all.return_value = b"???"
-    with patch("droplet_lab.devices.pump_mzr7245.serial.Serial", return_value=fake_serial):
-        with MZR7245Pump(port="COM3") as pump:
-            assert pump.get_actual_speed_rpm() is None
+    with (
+        patch("droplet_lab.devices.pump_mzr7245.serial.Serial", return_value=fake_serial),
+        MZR7245Pump(port="COM3") as pump,
+    ):
+        assert pump.get_actual_speed_rpm() is None
 
 
 def test_satisfies_pump_protocol(fake_serial: MagicMock) -> None:

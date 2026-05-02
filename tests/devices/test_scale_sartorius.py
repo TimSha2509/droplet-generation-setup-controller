@@ -14,14 +14,18 @@ def test_open_close() -> None:
 def test_read_weight_parses_print_line() -> None:
     fake = MagicMock()
     fake.readline.return_value = b"+   12.345 g\r\n"
-    with patch("droplet_lab.devices.scale_sartorius.serial.Serial", return_value=fake):
-        with SartoriusScale(port="COM5") as scale:
-            assert scale.read_weight_g() == 12.345
+    with (
+        patch("droplet_lab.devices.scale_sartorius.serial.Serial", return_value=fake),
+        SartoriusScale(port="COM5") as scale,
+    ):
+        assert scale.read_weight_g() == 12.345
 
 
 def test_read_weight_returns_none_on_garbage() -> None:
     fake = MagicMock()
     fake.readline.return_value = b"???\r\n"
-    with patch("droplet_lab.devices.scale_sartorius.serial.Serial", return_value=fake):
-        with SartoriusScale(port="COM5") as scale:
-            assert scale.read_weight_g() is None
+    with (
+        patch("droplet_lab.devices.scale_sartorius.serial.Serial", return_value=fake),
+        SartoriusScale(port="COM5") as scale,
+    ):
+        assert scale.read_weight_g() is None

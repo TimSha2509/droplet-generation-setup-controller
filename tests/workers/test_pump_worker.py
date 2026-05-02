@@ -87,5 +87,5 @@ def test_sets_error_event_on_pump_failure(tmp_path) -> None:
     state = ExperimentState()
     state.update(step_index=1, set_speed_rpm=0)
     with pump:
-        exp, error = _run_worker(tmp_path, pump, state, duration_s=0.3)
+        _exp, error = _run_worker(tmp_path, pump, state, duration_s=0.3)
     assert error.is_set()

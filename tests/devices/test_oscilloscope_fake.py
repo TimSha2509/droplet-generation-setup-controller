@@ -4,6 +4,7 @@ from droplet_lab.state import ExperimentState
 
 def test_satisfies_protocol() -> None:
     from droplet_lab.devices.base import Oscilloscope
+
     s: Oscilloscope = FakeOscilloscope(state=ExperimentState(), seed=0)
     assert s is not None
 

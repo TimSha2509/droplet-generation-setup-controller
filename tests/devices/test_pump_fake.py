@@ -65,6 +65,5 @@ def test_context_manager_open_close() -> None:
 
 
 def test_set_speed_rejects_negative() -> None:
-    with FakePump(seed=0) as p:
-        with pytest.raises(ValueError):
-            p.set_speed(-1)
+    with FakePump(seed=0) as p, pytest.raises(ValueError):
+        p.set_speed(-1)

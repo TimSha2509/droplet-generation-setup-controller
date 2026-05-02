@@ -41,7 +41,7 @@ class MZR7245Pump:
         self._ser: serial.Serial | None = None
         self._log = logger.bind(component="pump")
 
-    def __enter__(self) -> "MZR7245Pump":
+    def __enter__(self) -> MZR7245Pump:
         self._ser = serial.Serial(
             port=self._port,
             baudrate=self._baudrate,
