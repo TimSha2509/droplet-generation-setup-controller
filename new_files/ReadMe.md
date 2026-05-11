@@ -28,4 +28,5 @@ Insgesamt ist es wichtig, dass bei den gespeicherten Bilder nachvollziehbar ist,
 
 TO_DO
 Oscilloscope.csv etc. für jeden Run in Sub-Folder abspeichern, sodass rohdaten dem jeweiligen Step zugeordnet werden können.
+
 Jeden einzelnen Run mit Timestamp indexen und in Batch Report Datei hinterlegen, sodass nach einzelnen Parametern gefiltert werden kann ("Zeige mir alle Runs mit Material X und der Kombination aus FlowRate Y und Frequenz Z")
