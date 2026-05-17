@@ -2,12 +2,14 @@
 
 from droplet_lab.config import (
     CameraConfig,
+    FunctionGeneratorConfig,
     OscilloscopeConfig,
     PumpConfig,
     ScaleConfig,
 )
 from droplet_lab.devices.base import (
     Camera,
+    FunctionGenerator,
     Oscilloscope,
     Pump,
     Scale,
@@ -15,6 +17,8 @@ from droplet_lab.devices.base import (
 )
 from droplet_lab.devices.camera_digicam import DigiCamCamera
 from droplet_lab.devices.camera_fake import FakeCamera
+from droplet_lab.devices.function_generator_fake import FakeFunctionGenerator
+from droplet_lab.devices.function_generator_psg9080 import PSG9080Generator
 from droplet_lab.devices.oscilloscope_fake import FakeOscilloscope
 from droplet_lab.devices.oscilloscope_keysight import KeysightOscilloscope
 from droplet_lab.devices.pump_fake import FakePump
@@ -25,11 +29,13 @@ from droplet_lab.state import ExperimentState
 
 __all__ = [
     "Camera",
+    "FunctionGenerator",
     "Oscilloscope",
     "Pump",
     "Scale",
     "ScopeMeasurement",
     "build_camera",
+    "build_function_generator",
     "build_oscilloscope",
     "build_pump",
     "build_scale",
@@ -57,6 +63,14 @@ def build_camera(cfg: CameraConfig, *, simulate: bool) -> Camera:
     if simulate:
         return FakeCamera()
     return DigiCamCamera(url=cfg.digicam_url, request_timeout_s=cfg.request_timeout_s)
+
+
+def build_function_generator(
+    cfg: FunctionGeneratorConfig, *, simulate: bool
+) -> FunctionGenerator:
+    if simulate:
+        return FakeFunctionGenerator()
+    return PSG9080Generator(port=cfg.port, channel=cfg.channel, baudrate=cfg.baudrate)
 
 
 def build_scale(cfg: ScaleConfig, *, simulate: bool) -> Scale:

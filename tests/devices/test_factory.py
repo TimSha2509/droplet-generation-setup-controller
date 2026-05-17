@@ -50,3 +50,23 @@ def test_real_returns_real_classes() -> None:
     assert isinstance(scope, KeysightOscilloscope)
     assert isinstance(cam, DigiCamCamera)
     assert isinstance(scale, SartoriusScale)
+
+
+from droplet_lab.config import FunctionGeneratorConfig
+from droplet_lab.devices import (
+    FakeFunctionGenerator,
+    PSG9080Generator,
+    build_function_generator,
+)
+
+
+def test_build_function_generator_returns_fake_when_simulating() -> None:
+    fg = build_function_generator(FunctionGeneratorConfig(port="COM4"), simulate=True)
+    assert isinstance(fg, FakeFunctionGenerator)
+
+
+def test_build_function_generator_returns_real_when_not_simulating() -> None:
+    fg = build_function_generator(
+        FunctionGeneratorConfig(port="COMX", channel=2), simulate=False
+    )
+    assert isinstance(fg, PSG9080Generator)
