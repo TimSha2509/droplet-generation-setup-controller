@@ -16,7 +16,7 @@ def test_identify_returns_label() -> None:
 
 def test_measure_returns_finite_values() -> None:
     state = ExperimentState()
-    state.update(step_index=1, set_speed_rpm=300)
+    state.update(combo_index=1, set_speed_rpm=300, set_frequency_hz=20.0, set_amplitude_vpp=3.0)
     with FakeOscilloscope(state=state, seed=0) as scope:
         m = scope.measure()
         assert m.frequency_hz is not None and m.frequency_hz > 0
@@ -28,9 +28,9 @@ def test_measure_returns_finite_values() -> None:
 def test_vpp_increases_with_rpm() -> None:
     state = ExperimentState()
     with FakeOscilloscope(state=state, seed=0, noise_amplitude=0.0) as scope:
-        state.update(step_index=1, set_speed_rpm=100)
+        state.update(combo_index=1, set_speed_rpm=100, set_frequency_hz=20.0, set_amplitude_vpp=3.0)
         low = scope.measure().vpp_v
-        state.update(step_index=2, set_speed_rpm=900)
+        state.update(combo_index=2, set_speed_rpm=900, set_frequency_hz=20.0, set_amplitude_vpp=3.0)
         high = scope.measure().vpp_v
     assert low is not None and high is not None
     assert high > low
@@ -38,7 +38,7 @@ def test_vpp_increases_with_rpm() -> None:
 
 def test_determinism() -> None:
     state = ExperimentState()
-    state.update(step_index=1, set_speed_rpm=200)
+    state.update(combo_index=1, set_speed_rpm=200, set_frequency_hz=20.0, set_amplitude_vpp=3.0)
     a = FakeOscilloscope(state=state, seed=7)
     b = FakeOscilloscope(state=state, seed=7)
     with a, b:
