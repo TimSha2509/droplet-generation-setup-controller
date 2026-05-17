@@ -1,4 +1,6 @@
 # mypy: disable-error-code="comparison-overlap"
+import threading
+
 from droplet_lab.state import (
     CameraStatus,
     ExperimentState,
@@ -32,18 +34,33 @@ def test_status_enums_have_string_values() -> None:
 
 def test_experiment_state_initial_values() -> None:
     state = ExperimentState()
-    assert state.step_index is None
+    assert state.combo_index is None
     assert state.set_speed_rpm is None
+    assert state.set_frequency_hz is None
+    assert state.set_amplitude_vpp is None
+
+
+def test_experiment_state_update_round_trips_all_fields() -> None:
+    state = ExperimentState()
+    state.update(combo_index=7, set_speed_rpm=800, set_frequency_hz=25.0, set_amplitude_vpp=5.0)
+    snap = state.snapshot()
+    assert snap.combo_index == 7
+    assert snap.set_speed_rpm == 800
+    assert snap.set_frequency_hz == 25.0
+    assert snap.set_amplitude_vpp == 5.0
 
 
 def test_experiment_state_update_is_thread_safe() -> None:
-    import threading
-
     state = ExperimentState()
 
     def writer(start: int) -> None:
         for i in range(start, start + 100):
-            state.update(step_index=i, set_speed_rpm=i * 10)
+            state.update(
+                combo_index=i,
+                set_speed_rpm=i * 10,
+                set_frequency_hz=float(i),
+                set_amplitude_vpp=float(i) / 2.0,
+            )
 
     threads = [threading.Thread(target=writer, args=(i * 1000,)) for i in range(4)]
     for t in threads:
@@ -51,7 +68,7 @@ def test_experiment_state_update_is_thread_safe() -> None:
     for t in threads:
         t.join()
 
-    snapshot = state.snapshot()
-    assert snapshot.step_index is not None
-    assert snapshot.set_speed_rpm is not None
-    assert snapshot.set_speed_rpm == snapshot.step_index * 10
+    snap = state.snapshot()
+    assert snap.combo_index is not None
+    assert snap.set_speed_rpm == snap.combo_index * 10
+    assert snap.set_frequency_hz == float(snap.combo_index)

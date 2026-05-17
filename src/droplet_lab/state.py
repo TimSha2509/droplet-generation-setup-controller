@@ -38,15 +38,18 @@ class CameraStatus(StrEnum):
 class ExperimentStateSnapshot:
     """Immutable point-in-time view of ExperimentState (safe to share across threads)."""
 
-    step_index: int | None = None
+    combo_index: int | None = None
     set_speed_rpm: int | None = None
+    set_frequency_hz: float | None = None
+    set_amplitude_vpp: float | None = None
 
 
 class ExperimentState:
-    """Thread-safe holder for the orchestrator's currently active step + speed.
+    """Thread-safe holder for the currently active sweep combination.
 
-    Workers (especially the scope) read this every measurement to tag rows with
-    the correct step. The orchestrator updates it on every ramp transition.
+    Workers read this every measurement to tag rows with the correct combo
+    (index, rpm, freq, amp). The orchestrator updates it on every combination
+    transition.
     """
 
     def __init__(self) -> None:
@@ -54,21 +57,40 @@ class ExperimentState:
         self._snapshot = ExperimentStateSnapshot()
 
     @property
-    def step_index(self) -> int | None:
+    def combo_index(self) -> int | None:
         with self._lock:
-            return self._snapshot.step_index
+            return self._snapshot.combo_index
 
     @property
     def set_speed_rpm(self) -> int | None:
         with self._lock:
             return self._snapshot.set_speed_rpm
 
-    def update(self, *, step_index: int, set_speed_rpm: int) -> None:
+    @property
+    def set_frequency_hz(self) -> float | None:
+        with self._lock:
+            return self._snapshot.set_frequency_hz
+
+    @property
+    def set_amplitude_vpp(self) -> float | None:
+        with self._lock:
+            return self._snapshot.set_amplitude_vpp
+
+    def update(
+        self,
+        *,
+        combo_index: int,
+        set_speed_rpm: int,
+        set_frequency_hz: float,
+        set_amplitude_vpp: float,
+    ) -> None:
         with self._lock:
             self._snapshot = replace(
                 self._snapshot,
-                step_index=step_index,
+                combo_index=combo_index,
                 set_speed_rpm=set_speed_rpm,
+                set_frequency_hz=set_frequency_hz,
+                set_amplitude_vpp=set_amplitude_vpp,
             )
 
     def snapshot(self) -> ExperimentStateSnapshot:
