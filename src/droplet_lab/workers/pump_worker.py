@@ -1,8 +1,9 @@
 """Pump worker thread.
 
-Continuously logs pump telemetry to ``pump.csv`` and consumes ``SetSpeedCommand``
-messages from the orchestrator's queue. Stops cleanly when ``stop_event`` is
-set; signals ``error_event`` on hardware failure.
+Continuously logs pump telemetry to the current combo's ``pump.csv`` and
+consumes ``SetSpeedCommand`` messages from the orchestrator's queue. Rotates
+the output file whenever ``ExperimentState.combo_index`` advances. Stops
+cleanly on ``stop_event``; signals ``error_event`` on hardware failure.
 """
 
 from __future__ import annotations
@@ -11,12 +12,19 @@ import queue
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from loguru import logger
 
 from droplet_lab.devices.base import Pump
-from droplet_lab.state import ExperimentState
-from droplet_lab.storage import ExperimentDirectory, PumpRow, utc_now_iso
+from droplet_lab.state import ExperimentState, ExperimentStateSnapshot
+from droplet_lab.storage import (
+    ExperimentDirectory,
+    PumpRow,
+    RotatingCsvWriter,
+    combo_folder_name,
+    utc_now_iso,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,38 +56,56 @@ class PumpWorker:
     def run(self) -> None:
         start = time.monotonic()
         next_log = start
+        writer = RotatingCsvWriter(PumpRow)
+        current_combo: int | None = None
         try:
-            with self._exp.open_pump_csv() as writer:
-                while not self._stop.is_set():
-                    try:
-                        cmd = self._queue.get_nowait()
-                    except queue.Empty:
-                        cmd = None
-                    if cmd is not None:
-                        self._pump.set_speed(cmd.rpm)
-                        self._log.info("set speed -> {} rpm", cmd.rpm)
+            while not self._stop.is_set():
+                try:
+                    cmd = self._queue.get_nowait()
+                except queue.Empty:
+                    cmd = None
+                if cmd is not None:
+                    self._pump.set_speed(cmd.rpm)
+                    self._log.info("set speed -> {} rpm", cmd.rpm)
 
-                    now = time.monotonic()
-                    if now >= next_log:
-                        snap = self._state.snapshot()
+                now = time.monotonic()
+                if now >= next_log:
+                    snap = self._state.snapshot()
+                    if snap.combo_index is not None and snap.combo_index != current_combo:
+                        current_combo = snap.combo_index
+                        folder = self._combo_folder(snap)
+                        writer.open_in(folder, "pump.csv")
+                    if writer.is_open:
                         writer.write(
                             PumpRow(
                                 timestamp_utc=utc_now_iso(),
                                 elapsed_s=round(now - start, 3),
-                                step_index=snap.step_index,
+                                combo_index=snap.combo_index,
                                 set_speed_rpm=snap.set_speed_rpm,
+                                set_frequency_hz=snap.set_frequency_hz,
+                                set_amplitude_vpp=snap.set_amplitude_vpp,
                                 actual_speed_rpm=self._pump.get_actual_speed_rpm(),
                                 temperature_c=self._pump.get_temperature_c(),
                             )
                         )
-                        next_log = now + self._log_interval_s
-                    time.sleep(0.02)
+                    next_log = now + self._log_interval_s
+                time.sleep(0.02)
         except Exception:
             self._log.exception("pump worker crashed")
             self._error.set()
         finally:
+            writer.close()
             try:
                 self._pump.stop()
             except Exception:
                 self._log.exception("failed to stop pump on shutdown")
             self._log.info("pump worker finished")
+
+    def _combo_folder(self, snap: ExperimentStateSnapshot) -> Path:
+        assert snap.combo_index is not None
+        assert snap.set_speed_rpm is not None
+        assert snap.set_frequency_hz is not None
+        assert snap.set_amplitude_vpp is not None
+        return self._exp.steps_dir / combo_folder_name(
+            snap.combo_index, snap.set_speed_rpm, snap.set_frequency_hz, snap.set_amplitude_vpp
+        )

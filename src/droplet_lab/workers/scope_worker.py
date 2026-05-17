@@ -1,20 +1,22 @@
-"""Oscilloscope worker thread.
-
-Polls the scope at ``log_interval_s`` cadence; tags each row with the current
-step from ``ExperimentState``; computes peak-to-peak displacement from Vpp via
-the vibrometer factor.
-"""
+"""Oscilloscope worker thread."""
 
 from __future__ import annotations
 
 import threading
 import time
+from pathlib import Path
 
 from loguru import logger
 
 from droplet_lab.devices.base import Oscilloscope
-from droplet_lab.state import ExperimentState
-from droplet_lab.storage import ExperimentDirectory, OscilloscopeRow, utc_now_iso
+from droplet_lab.state import ExperimentState, ExperimentStateSnapshot
+from droplet_lab.storage import (
+    ExperimentDirectory,
+    OscilloscopeRow,
+    RotatingCsvWriter,
+    combo_folder_name,
+    utc_now_iso,
+)
 
 
 class ScopeWorker:
@@ -41,20 +43,28 @@ class ScopeWorker:
     def run(self) -> None:
         start = time.monotonic()
         next_log = start
+        writer = RotatingCsvWriter(OscilloscopeRow)
+        current_combo: int | None = None
         try:
-            with self._exp.open_oscilloscope_csv() as writer:
-                while not self._stop.is_set():
-                    now = time.monotonic()
-                    if now >= next_log:
-                        snap = self._state.snapshot()
+            while not self._stop.is_set():
+                now = time.monotonic()
+                if now >= next_log:
+                    snap = self._state.snapshot()
+                    if snap.combo_index is not None and snap.combo_index != current_combo:
+                        current_combo = snap.combo_index
+                        folder = self._combo_folder(snap)
+                        writer.open_in(folder, "oscilloscope.csv")
+                    if writer.is_open:
                         m = self._scope.measure()
                         p2p = m.vpp_v * self._factor if m.vpp_v is not None else None
                         writer.write(
                             OscilloscopeRow(
                                 timestamp_utc=utc_now_iso(),
                                 elapsed_s=round(now - start, 3),
-                                step_index=snap.step_index,
+                                combo_index=snap.combo_index,
                                 set_speed_rpm=snap.set_speed_rpm,
+                                set_frequency_hz=snap.set_frequency_hz,
+                                set_amplitude_vpp=snap.set_amplitude_vpp,
                                 frequency_hz=m.frequency_hz,
                                 vpp_v=m.vpp_v,
                                 p2p_displacement_um=p2p,
@@ -62,10 +72,20 @@ class ScopeWorker:
                                 ch3_vrms_dc_v=m.ch3_vrms_dc_v,
                             )
                         )
-                        next_log = now + self._interval
-                    time.sleep(0.02)
+                    next_log = now + self._interval
+                time.sleep(0.02)
         except Exception:
             self._log.exception("scope worker crashed")
             self._error.set()
         finally:
+            writer.close()
             self._log.info("scope worker finished")
+
+    def _combo_folder(self, snap: ExperimentStateSnapshot) -> Path:
+        assert snap.combo_index is not None
+        assert snap.set_speed_rpm is not None
+        assert snap.set_frequency_hz is not None
+        assert snap.set_amplitude_vpp is not None
+        return self._exp.steps_dir / combo_folder_name(
+            snap.combo_index, snap.set_speed_rpm, snap.set_frequency_hz, snap.set_amplitude_vpp
+        )

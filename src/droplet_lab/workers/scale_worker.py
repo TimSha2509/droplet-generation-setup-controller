@@ -1,4 +1,10 @@
-"""Scale worker thread (optional — only spawned if the scale is enabled)."""
+"""Scale worker thread (optional — only spawned if the scale is enabled).
+
+Appends to the global ``scale.csv`` at the configured interval. The
+orchestrator writes the very first ``phase=initial`` row (also via
+``append_scale_row``) before this worker is started; all rows from this worker
+have ``phase=sweep``.
+"""
 
 from __future__ import annotations
 
@@ -35,22 +41,24 @@ class ScaleWorker:
         start = time.monotonic()
         next_log = start
         try:
-            with self._exp.open_scale_csv() as writer:
-                while not self._stop.is_set():
-                    now = time.monotonic()
-                    if now >= next_log:
-                        snap = self._state.snapshot()
-                        writer.write(
-                            ScaleRow(
-                                timestamp_utc=utc_now_iso(),
-                                elapsed_s=round(now - start, 3),
-                                step_index=snap.step_index,
-                                set_speed_rpm=snap.set_speed_rpm,
-                                weight_g=self._scale.read_weight_g(),
-                            )
+            while not self._stop.is_set():
+                now = time.monotonic()
+                if now >= next_log:
+                    snap = self._state.snapshot()
+                    self._exp.append_scale_row(
+                        ScaleRow(
+                            timestamp_utc=utc_now_iso(),
+                            elapsed_s=round(now - start, 3),
+                            phase="sweep",
+                            combo_index=snap.combo_index,
+                            set_speed_rpm=snap.set_speed_rpm,
+                            set_frequency_hz=snap.set_frequency_hz,
+                            set_amplitude_vpp=snap.set_amplitude_vpp,
+                            weight_g=self._scale.read_weight_g(),
                         )
-                        next_log = now + self._interval
-                    time.sleep(0.02)
+                    )
+                    next_log = now + self._interval
+                time.sleep(0.02)
         except Exception:
             self._log.exception("scale worker crashed")
             self._error.set()
