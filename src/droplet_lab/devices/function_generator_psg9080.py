@@ -2,8 +2,8 @@
 
 Commands (channel 1 / channel 2):
     :w11=0.        / :w12=0.            — set sine wave
-    :w13=<n>,0.    / :w14=<n>,0.        — frequency, n = Hz × 1000
-    :w15=<n>.      / :w16=<n>.          — amplitude, n = Vpp × 1000
+    :w13=<n>,0.    / :w14=<n>,0.        — frequency, n = Hz x 1000
+    :w15=<n>.      / :w16=<n>.          — amplitude, n = Vpp x 1000
     :w10=<a>,<b>.                       — output enable (a=Ch1, b=Ch2 in {0,1})
 """
 
@@ -18,7 +18,7 @@ from loguru import logger
 
 from droplet_lab.config import MAX_AMPLITUDE_VPP
 
-__all__ = ["PSG9080Generator", "MAX_AMPLITUDE_VPP"]
+__all__ = ["MAX_AMPLITUDE_VPP", "PSG9080Generator"]
 
 _RESPONSE_READ_DELAY_S: Final[float] = 0.05
 _OPEN_SETTLE_S: Final[float] = 0.2

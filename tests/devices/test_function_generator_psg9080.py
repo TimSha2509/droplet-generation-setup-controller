@@ -89,3 +89,8 @@ def test_exit_sets_output_off_and_closes_serial() -> None:
 
 def test_max_amplitude_constant_reexported() -> None:
     assert MAX_AMPLITUDE_VPP == 9.5
+
+
+def test_constructor_rejects_invalid_channel() -> None:
+    with pytest.raises(ValueError, match="channel must be 1 or 2"):
+        PSG9080Generator(port="COM4", channel=3)
