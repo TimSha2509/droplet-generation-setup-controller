@@ -30,6 +30,7 @@ class FakeFunctionGenerator:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
+        self.output_on = False
         self._open = False
 
     def set_sine(self) -> None:

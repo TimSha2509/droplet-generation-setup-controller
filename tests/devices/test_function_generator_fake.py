@@ -27,10 +27,18 @@ def test_state_reflects_last_setting() -> None:
         fg.set_frequency_hz(25.0)
         fg.set_amplitude_vpp(5.0)
         fg.enable_output(True)
-    assert fg.is_sine is True
-    assert fg.frequency_hz == 25.0
-    assert fg.amplitude_vpp == 5.0
-    assert fg.output_on is True
+        assert fg.is_sine is True
+        assert fg.frequency_hz == 25.0
+        assert fg.amplitude_vpp == 5.0
+        assert fg.output_on is True
+
+
+def test_exit_resets_output_on_for_safety() -> None:
+    fg = FakeFunctionGenerator()
+    with fg:
+        fg.enable_output(True)
+        assert fg.output_on is True
+    assert fg.output_on is False
 
 
 def test_amplitude_above_limit_raises() -> None:
