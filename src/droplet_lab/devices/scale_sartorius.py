@@ -21,7 +21,7 @@ class SartoriusScale:
         self,
         *,
         port: str,
-        baudrate: int = 9600,
+        baudrate: int = 1200,
         timeout_s: float = 1.0,
     ) -> None:
         self._port = port
@@ -38,6 +38,7 @@ class SartoriusScale:
             parity=serial.PARITY_EVEN,
             stopbits=serial.STOPBITS_ONE,
             timeout=self._timeout_s,
+            xonxoff=True,
         )
         self._log.info("opened scale on {}", self._port)
         return self
