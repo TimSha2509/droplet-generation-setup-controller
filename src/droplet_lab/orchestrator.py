@@ -45,7 +45,7 @@ from droplet_lab.storage import (
     ScaleRow,
     utc_now_iso,
 )
-from droplet_lab.sweep import SweepCombination, expand_sweep
+from droplet_lab.sweep import ChangedKind, SweepCombination, expand_sweep
 from droplet_lab.workers.camera_worker import (
     CameraResult,
     CameraResultStatus,
@@ -259,7 +259,7 @@ class Orchestrator:
 
             step_folder = first_folder if combo.combo_index == 1 \
                 else exp.create_combo_folder(combo)
-            step_meta = self._initial_step_meta(combo, step_folder)
+            step_meta = self._initial_step_meta(combo)
             self._write_step_json(step_folder, step_meta)
 
             stabilization = self._stabilization_for(combo.changed)
@@ -323,6 +323,7 @@ class Orchestrator:
         return ExperimentStatus.COMPLETED, None
 
     def _wait(self, seconds: float) -> bool:
+        """Cooperative wait. Returns True if stop_event/error_event tripped."""
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             if self._stop.is_set() or self._error.is_set():
@@ -335,7 +336,7 @@ class Orchestrator:
             return ExperimentStatus.FAILED
         return ExperimentStatus.ABORTED
 
-    def _stabilization_for(self, changed: str) -> float:
+    def _stabilization_for(self, changed: ChangedKind) -> float:
         t = self._cfg.timing
         if changed in ("initial", "rpm"):
             return t.stabilization_rpm_change_s
@@ -343,9 +344,7 @@ class Orchestrator:
             return t.stabilization_freq_change_s
         return t.stabilization_amp_change_s
 
-    def _initial_step_meta(
-        self, combo: SweepCombination, step_folder: Path
-    ) -> dict[str, Any]:
+    def _initial_step_meta(self, combo: SweepCombination) -> dict[str, Any]:
         return {
             "combo_index": combo.combo_index,
             "set_speed_rpm": combo.set_speed_rpm,
