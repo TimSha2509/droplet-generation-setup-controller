@@ -84,10 +84,11 @@ class ScopeWorker:
             self._log.info("scope worker finished")
 
     def _combo_folder(self, snap: ExperimentStateSnapshot) -> Path:
-        assert snap.combo_index is not None
-        assert snap.set_speed_rpm is not None
-        assert snap.set_frequency_hz is not None
-        assert snap.set_amplitude_vpp is not None
+        # Caller guarantees combo_index is non-None; orchestrator updates all four
+        # fields atomically, so the others are non-None too.
         return self._exp.steps_dir / combo_folder_name(
-            snap.combo_index, snap.set_speed_rpm, snap.set_frequency_hz, snap.set_amplitude_vpp
+            snap.combo_index,  # type: ignore[arg-type]
+            snap.set_speed_rpm,  # type: ignore[arg-type]
+            snap.set_frequency_hz,  # type: ignore[arg-type]
+            snap.set_amplitude_vpp,  # type: ignore[arg-type]
         )

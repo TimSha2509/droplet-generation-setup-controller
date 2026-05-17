@@ -141,6 +141,8 @@ class Orchestrator:
                     self._write_experiment_json(exp, status=ExperimentStatus.RUNNING)
                     self._log.info("initial weight: {} g", self._initial_weight_g)
 
+                # Belt-and-suspenders: PSG9080.__enter__ also does this, but if a non-PSG9080
+                # driver is in the bundle the orchestrator must enforce the safe-defaults itself.
                 fg.set_sine()
                 fg.enable_output(False)
 
@@ -367,7 +369,7 @@ class Orchestrator:
             "captures": 0,
             "pump_csv": "pump.csv",
             "oscilloscope_csv": "oscilloscope.csv",
-            "scale_csv": "../../scale.csv",
+            "scale_csv": "../../scale.csv" if self._cfg.devices.scale.enabled else None,
         }
 
     def _write_step_json(self, folder: Path, payload: dict[str, Any]) -> None:
