@@ -8,33 +8,41 @@ from droplet_lab.cli import app
 runner = CliRunner()
 
 
-def _example_yaml(tmp_path: Path) -> Path:
+def _write_minimal_yaml(tmp_path: Path) -> Path:
     data = {
-        "experiment_id": "CLI_TEST",
+        "experiment_id": "TEST_01",
         "nozzle_id": "1mm_A",
-        "actuation": {"frequency_hz": 200, "voltage_v": 5, "vibrometer_factor_um_per_v": 5280},
-        "ramp": [{"speed_rpm": 200, "hold_s": 0.3}],
+        "vibrometer": {"factor_um_per_v": 5280},
+        "sweep": {
+            "speeds_rpm": [200],
+            "frequencies_hz": [20.0],
+            "amplitudes_vpp": [3.0],
+            "hold_s": 1.0,
+        },
         "timing": {
-            "stabilization_s": 0.05,
-            "image_interval_s": 0.1,
-            "camera_latency_tolerance_s": 0.05,
+            "stabilization_rpm_change_s": 0.5,
+            "stabilization_freq_change_s": 0.2,
+            "stabilization_amp_change_s": 0.1,
+            "image_interval_s": 0.5,
+            "camera_latency_tolerance_s": 0.5,
         },
         "limits": {"max_speed_rpm": 1000},
         "devices": {
             "pump": {"port": "COM3"},
-            "oscilloscope": {"visa_resource": "USB"},
-            "camera": {},
+            "oscilloscope": {"visa_resource": "USB0::INSTR"},
+            "camera": {"digicam_url": "http://localhost:5513"},
+            "function_generator": {"port": "COM4", "channel": 1},
             "scale": {"enabled": False},
         },
         "output": {"base_dir": str(tmp_path)},
     }
-    p = tmp_path / "exp.yaml"
-    p.write_text(yaml.safe_dump(data))
-    return p
+    path = tmp_path / "exp.yaml"
+    path.write_text(yaml.safe_dump(data))
+    return path
 
 
 def test_validate_ok(tmp_path: Path) -> None:
-    yml = _example_yaml(tmp_path)
+    yml = _write_minimal_yaml(tmp_path)
     res = runner.invoke(app, ["validate", str(yml)])
     assert res.exit_code == 0, res.output
     assert "OK" in res.output
@@ -47,15 +55,22 @@ def test_validate_rejects_bad_yaml(tmp_path: Path) -> None:
     assert res.exit_code != 0
 
 
+def test_validate_reports_combination_count(tmp_path: Path) -> None:
+    yml = _write_minimal_yaml(tmp_path)
+    res = runner.invoke(app, ["validate", str(yml)])
+    assert res.exit_code == 0, res.output
+    assert "1 combinations" in res.output
+
+
 def test_dry_run_prints_plan(tmp_path: Path) -> None:
-    yml = _example_yaml(tmp_path)
+    yml = _write_minimal_yaml(tmp_path)
     res = runner.invoke(app, ["run", str(yml), "--dry-run", "--no-confirm", "--simulate"])
     assert res.exit_code == 0, res.output
     assert "200" in res.output
 
 
 def test_run_simulate_completes(tmp_path: Path) -> None:
-    yml = _example_yaml(tmp_path)
+    yml = _write_minimal_yaml(tmp_path)
     res = runner.invoke(app, ["run", str(yml), "--simulate", "--no-confirm", "--no-tui"])
     assert res.exit_code == 0, res.output
     runs = list(tmp_path.iterdir())
@@ -64,16 +79,47 @@ def test_run_simulate_completes(tmp_path: Path) -> None:
 
 
 def test_simulate_only_accepts_csv(tmp_path: Path) -> None:
-    yml = _example_yaml(tmp_path)
+    yml = _write_minimal_yaml(tmp_path)
     res = runner.invoke(
         app,
-        ["run", str(yml), "--simulate-only", "pump,scope,camera,scale", "--no-confirm", "--no-tui"],
+        [
+            "run",
+            str(yml),
+            "--simulate-only",
+            "pump,scope,camera,function_generator,scale",
+            "--no-confirm",
+            "--no-tui",
+        ],
     )
     assert res.exit_code == 0, res.output
 
 
+def test_simulate_only_accepts_function_generator(tmp_path: Path) -> None:
+    yml = _write_minimal_yaml(tmp_path)
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            str(yml),
+            "--simulate-only",
+            "function_generator",
+            "--no-confirm",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+
 def test_simulate_only_rejects_unknown_device(tmp_path: Path) -> None:
-    yml = _example_yaml(tmp_path)
+    yml = _write_minimal_yaml(tmp_path)
+    result = runner.invoke(app, ["run", str(yml), "--simulate-only", "bogus"])
+    assert result.exit_code != 0
+    assert "bogus" in result.output
+    assert "function_generator" in result.output
+
+
+def test_simulate_only_rejects_unknown_device_legacy(tmp_path: Path) -> None:
+    yml = _write_minimal_yaml(tmp_path)
     res = runner.invoke(
         app,
         ["run", str(yml), "--simulate-only", "foo", "--no-confirm", "--no-tui"],

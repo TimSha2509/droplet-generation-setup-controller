@@ -16,27 +16,30 @@ import typer
 
 from droplet_lab import __version__
 from droplet_lab.config import (
-    ActuationConfig,
     CameraConfig,
     DevicesConfig,
     ExperimentConfig,
+    FunctionGeneratorConfig,
     LimitsConfig,
     OscilloscopeConfig,
     OutputConfig,
     PumpConfig,
-    RampStep,
     ScaleConfig,
+    SweepConfig,
     TimingConfig,
+    VibrometerConfig,
     load_experiment,
 )
 from droplet_lab.devices import (
     build_camera,
+    build_function_generator,
     build_oscilloscope,
     build_pump,
     build_scale,
 )
 from droplet_lab.orchestrator import DeviceBundle, Orchestrator
 from droplet_lab.state import ExperimentState, ExperimentStatus
+from droplet_lab.sweep import expand_sweep
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
@@ -62,14 +65,22 @@ def main(
     """Droplet Lab controller."""
 
 
+def _combo_count(cfg: ExperimentConfig) -> int:
+    return (
+        len(cfg.sweep.speeds_rpm)
+        * len(cfg.sweep.frequencies_hz)
+        * len(cfg.sweep.amplitudes_vpp)
+    )
+
+
 @app.command()
 def validate(yaml_path: Path) -> None:
     """Validate an experiment YAML without opening any hardware."""
     cfg = load_experiment(yaml_path)
-    typer.echo(f"OK: {cfg.experiment_id} ({len(cfg.ramp)} steps)")
+    typer.echo(f"OK: {cfg.experiment_id} ({_combo_count(cfg)} combinations)")
 
 
-_VALID_SIMULATE_ONLY = {"pump", "scope", "camera", "scale"}
+_VALID_SIMULATE_ONLY = {"pump", "scope", "camera", "function_generator", "scale"}
 
 
 def _parse_simulate_only(raw: str | None) -> set[str]:
@@ -89,13 +100,17 @@ def run(
     yaml_path: Path,
     simulate: Annotated[
         bool,
-        typer.Option("--simulate", help="Use FakePump/FakeScope/FakeCamera/FakeScale"),
+        typer.Option(
+            "--simulate",
+            help="Use all fake devices (pump, scope, camera, function_generator, scale)",
+        ),
     ] = False,
     simulate_only: Annotated[
         str | None,
         typer.Option(
             "--simulate-only",
-            help="Comma-separated list of devices to mock (pump,scope,camera,scale)",
+            help="Comma-separated list of devices to mock "
+            "(pump,scope,camera,function_generator,scale)",
         ),
     ] = None,
     output_dir: Annotated[
@@ -124,13 +139,29 @@ def run(
     if simulate:
         fakes = set(_VALID_SIMULATE_ONLY)
 
+    n_combos = _combo_count(cfg)
     typer.echo(f"Experiment: {cfg.experiment_id}  nozzle={cfg.nozzle_id}")
+    typer.echo(
+        f"Sweep: rpm={list(cfg.sweep.speeds_rpm)}  "
+        f"freq={list(cfg.sweep.frequencies_hz)} Hz  "
+        f"amp={list(cfg.sweep.amplitudes_vpp)} Vpp  "
+        f"hold={cfg.sweep.hold_s} s  ({n_combos} combinations)"
+    )
     if fakes:
         typer.echo(f"Simulated devices: {sorted(fakes)}")
-    for i, step in enumerate(cfg.ramp, start=1):
-        typer.echo(f"  step {i:02d}: {step.speed_rpm} rpm for {step.hold_s} s")
 
     if dry_run:
+        for c in expand_sweep(
+            speeds_rpm=list(cfg.sweep.speeds_rpm),
+            frequencies_hz=list(cfg.sweep.frequencies_hz),
+            amplitudes_vpp=list(cfg.sweep.amplitudes_vpp),
+            hold_s=cfg.sweep.hold_s,
+        ):
+            typer.echo(
+                f"  combo {c.combo_index:03d}: rpm={c.set_speed_rpm}  "
+                f"freq={c.frequency_hz}Hz  amp={c.amplitude_vpp}Vpp  "
+                f"(changed={c.changed})"
+            )
         typer.echo("--dry-run: not executing")
         return
 
@@ -144,6 +175,10 @@ def run(
             cfg.devices.oscilloscope, state=state, simulate="scope" in fakes
         ),
         "camera": build_camera(cfg.devices.camera, simulate="camera" in fakes),
+        "function_generator": build_function_generator(
+            cfg.devices.function_generator,
+            simulate="function_generator" in fakes,
+        ),
         "scale": build_scale(cfg.devices.scale, simulate="scale" in fakes),
     }
     result = Orchestrator(
@@ -168,14 +203,26 @@ def new(yaml_path: Path) -> None:
     cfg = ExperimentConfig(
         experiment_id=yaml_path.stem,
         nozzle_id="1mm_A",
-        actuation=ActuationConfig(frequency_hz=200, voltage_v=5, vibrometer_factor_um_per_v=5280),
-        ramp=[RampStep(speed_rpm=200, hold_s=30), RampStep(speed_rpm=300, hold_s=60)],
-        timing=TimingConfig(stabilization_s=10, image_interval_s=5, camera_latency_tolerance_s=1.0),
+        vibrometer=VibrometerConfig(factor_um_per_v=5280),
+        sweep=SweepConfig(
+            speeds_rpm=[200, 800, 1000],
+            frequencies_hz=[20.0, 25.0, 30.0],
+            amplitudes_vpp=[3.0, 5.0, 9.0],
+            hold_s=30.0,
+        ),
+        timing=TimingConfig(
+            stabilization_rpm_change_s=10.0,
+            stabilization_freq_change_s=3.0,
+            stabilization_amp_change_s=1.0,
+            image_interval_s=5.0,
+            camera_latency_tolerance_s=1.0,
+        ),
         limits=LimitsConfig(max_speed_rpm=1000),
         devices=DevicesConfig(
             pump=PumpConfig(port="COM3"),
             oscilloscope=OscilloscopeConfig(visa_resource="USB0::0xXXXX::INSTR"),
             camera=CameraConfig(),
+            function_generator=FunctionGeneratorConfig(port="COM4"),
             scale=ScaleConfig(enabled=False),
         ),
         output=OutputConfig(base_dir=Path("DATA")),
