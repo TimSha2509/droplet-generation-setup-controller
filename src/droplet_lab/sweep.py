@@ -36,7 +36,6 @@ def expand_sweep(
     out: list[SweepCombination] = []
     prev_rpm: int | None = None
     prev_freq: float | None = None
-    prev_amp: float | None = None
     idx = 0
     for rpm in speeds_rpm:
         for freq in frequencies_hz:
@@ -65,5 +64,4 @@ def expand_sweep(
                 )
                 prev_rpm = rpm
                 prev_freq = freq
-                prev_amp = amp
     return out

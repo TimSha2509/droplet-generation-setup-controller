@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -20,7 +21,7 @@ from droplet_lab.config import (
 )
 
 
-def _minimal_dict(tmp_path: Path) -> dict[str, object]:
+def _minimal_dict(tmp_path: Path) -> dict[str, Any]:
     return {
         "experiment_id": "TEST_01",
         "nozzle_id": "1mm_A",

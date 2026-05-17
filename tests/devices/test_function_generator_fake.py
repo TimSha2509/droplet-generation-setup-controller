@@ -43,6 +43,5 @@ def test_exit_resets_output_on_for_safety() -> None:
 
 def test_amplitude_above_limit_raises() -> None:
     fg = FakeFunctionGenerator()
-    with fg:
-        with pytest.raises(ValueError, match="exceeds hardware limit"):
-            fg.set_amplitude_vpp(9.6)
+    with fg, pytest.raises(ValueError, match="exceeds hardware limit"):
+        fg.set_amplitude_vpp(9.6)

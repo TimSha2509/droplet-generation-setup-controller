@@ -1,16 +1,20 @@
 from droplet_lab.config import (
     CameraConfig,
+    FunctionGeneratorConfig,
     OscilloscopeConfig,
     PumpConfig,
     ScaleConfig,
 )
 from droplet_lab.devices import (
     build_camera,
+    build_function_generator,
     build_oscilloscope,
     build_pump,
     build_scale,
 )
 from droplet_lab.devices.camera_fake import FakeCamera
+from droplet_lab.devices.function_generator_fake import FakeFunctionGenerator
+from droplet_lab.devices.function_generator_psg9080 import PSG9080Generator
 from droplet_lab.devices.oscilloscope_fake import FakeOscilloscope
 from droplet_lab.devices.pump_fake import FakePump
 from droplet_lab.devices.scale_fake import FakeScale
@@ -50,14 +54,6 @@ def test_real_returns_real_classes() -> None:
     assert isinstance(scope, KeysightOscilloscope)
     assert isinstance(cam, DigiCamCamera)
     assert isinstance(scale, SartoriusScale)
-
-
-from droplet_lab.config import FunctionGeneratorConfig
-from droplet_lab.devices import (
-    FakeFunctionGenerator,
-    PSG9080Generator,
-    build_function_generator,
-)
 
 
 def test_build_function_generator_returns_fake_when_simulating() -> None:

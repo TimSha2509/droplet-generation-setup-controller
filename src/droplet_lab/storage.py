@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
@@ -124,7 +124,7 @@ class RunsRow:
 
 
 def _fieldnames_for(row_cls: type) -> list[str]:
-    return [f.name for f in row_cls.__dataclass_fields__.values()]
+    return [f.name for f in fields(row_cls)]
 
 
 class CsvRowWriter:

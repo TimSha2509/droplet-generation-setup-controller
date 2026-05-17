@@ -1,4 +1,4 @@
-from droplet_lab.sweep import SweepCombination, expand_sweep
+from droplet_lab.sweep import expand_sweep
 
 
 def test_expand_yields_full_cross_product_in_rpm_freq_amp_order() -> None:
