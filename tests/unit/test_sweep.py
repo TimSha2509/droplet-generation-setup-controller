@@ -46,3 +46,10 @@ def test_single_combination_is_initial() -> None:
 def test_hold_s_propagated() -> None:
     combos = expand_sweep(speeds_rpm=[200], frequencies_hz=[20.0], amplitudes_vpp=[3.0], hold_s=42.0)
     assert combos[0].hold_s == 42.0
+
+
+def test_duplicate_amplitude_still_classified_as_amp_step() -> None:
+    combos = expand_sweep(
+        speeds_rpm=[200], frequencies_hz=[20.0], amplitudes_vpp=[3.0, 3.0], hold_s=1.0
+    )
+    assert [c.changed for c in combos] == ["initial", "amp"]

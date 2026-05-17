@@ -129,7 +129,7 @@ class ExperimentConfig(_StrictModel):
         return self
 
     @model_validator(mode="after")
-    def _hold_s_covers_worst_case_stabilization(self) -> ExperimentConfig:
+    def _hold_s_covers_rpm_stabilization(self) -> ExperimentConfig:
         if self.sweep.hold_s < self.timing.stabilization_rpm_change_s:
             raise ValueError(
                 f"sweep.hold_s={self.sweep.hold_s} must be >= "
