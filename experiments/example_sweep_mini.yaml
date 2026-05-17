@@ -1,0 +1,41 @@
+experiment_id: SWEEP_MINI
+nozzle_id: 1mm_A
+
+vibrometer:
+  factor_um_per_v: 5280
+
+sweep:
+  speeds_rpm:     [200, 300]
+  frequencies_hz: [20.0, 25.0]
+  amplitudes_vpp: [3.0, 5.0]
+  hold_s: 1.0
+
+timing:
+  stabilization_rpm_change_s: 0.2
+  stabilization_freq_change_s: 0.1
+  stabilization_amp_change_s: 0.05
+  image_interval_s: 0.2
+  camera_latency_tolerance_s: 0.5
+
+limits:
+  max_speed_rpm: 1000
+
+devices:
+  pump:
+    port: COMX
+    baudrate: 9600
+  oscilloscope:
+    visa_resource: "USBX::INSTR"
+  camera:
+    digicam_url: "http://localhost:5513"
+  function_generator:
+    port: COMY
+    channel: 1
+  scale:
+    enabled: true
+    port: COMZ
+    baudrate: 1200
+    interval_s: 0.2
+
+output:
+  base_dir: ./DATA  # overridden in tests via output_dir

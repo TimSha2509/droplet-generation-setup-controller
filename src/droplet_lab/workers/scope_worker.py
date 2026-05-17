@@ -48,12 +48,14 @@ class ScopeWorker:
         try:
             while not self._stop.is_set():
                 now = time.monotonic()
+                snap = self._state.snapshot()
+                # Rotate the output file as soon as the combo index advances,
+                # regardless of the log interval — guarantees one file per combo.
+                if snap.combo_index is not None and snap.combo_index != current_combo:
+                    current_combo = snap.combo_index
+                    folder = self._combo_folder(snap)
+                    writer.open_in(folder, "oscilloscope.csv")
                 if now >= next_log:
-                    snap = self._state.snapshot()
-                    if snap.combo_index is not None and snap.combo_index != current_combo:
-                        current_combo = snap.combo_index
-                        folder = self._combo_folder(snap)
-                        writer.open_in(folder, "oscilloscope.csv")
                     if writer.is_open:
                         m = self._scope.measure()
                         p2p = m.vpp_v * self._factor if m.vpp_v is not None else None

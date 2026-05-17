@@ -45,9 +45,7 @@ class FakeFunctionGenerator:
 
     def set_amplitude_vpp(self, vpp: float) -> None:
         if vpp > MAX_AMPLITUDE_VPP:
-            raise ValueError(
-                f"amplitude {vpp} Vpp exceeds hardware limit {MAX_AMPLITUDE_VPP} Vpp"
-            )
+            raise ValueError(f"amplitude {vpp} Vpp exceeds hardware limit {MAX_AMPLITUDE_VPP} Vpp")
         self.calls.append(("set_amplitude_vpp", float(vpp)))
         self.amplitude_vpp = float(vpp)
         self._log.debug("fake fg: amplitude={} Vpp", vpp)

@@ -66,11 +66,7 @@ def main(
 
 
 def _combo_count(cfg: ExperimentConfig) -> int:
-    return (
-        len(cfg.sweep.speeds_rpm)
-        * len(cfg.sweep.frequencies_hz)
-        * len(cfg.sweep.amplitudes_vpp)
-    )
+    return len(cfg.sweep.speeds_rpm) * len(cfg.sweep.frequencies_hz) * len(cfg.sweep.amplitudes_vpp)
 
 
 @app.command()

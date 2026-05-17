@@ -11,7 +11,9 @@ from droplet_lab.devices.function_generator_psg9080 import (
 def _open(port="COM4", channel=1) -> tuple[PSG9080Generator, MagicMock]:
     fake_serial = MagicMock()
     fake_serial.read_all.return_value = b""
-    with patch("droplet_lab.devices.function_generator_psg9080.serial.Serial", return_value=fake_serial):
+    with patch(
+        "droplet_lab.devices.function_generator_psg9080.serial.Serial", return_value=fake_serial
+    ):
         fg = PSG9080Generator(port=port, channel=channel)
         fg.__enter__()
     return fg, fake_serial

@@ -9,7 +9,9 @@ from droplet_lab.storage import ExperimentDirectory, combo_folder_name
 from droplet_lab.workers.pump_worker import PumpWorker, SetSpeedCommand
 
 
-def _make_combo_folder(exp: ExperimentDirectory, idx: int, rpm: int, freq: float, amp: float) -> Path:
+def _make_combo_folder(
+    exp: ExperimentDirectory, idx: int, rpm: int, freq: float, amp: float
+) -> Path:
     folder = exp.steps_dir / combo_folder_name(idx, rpm, freq, amp)
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "images").mkdir(exist_ok=True)
@@ -28,9 +30,13 @@ def test_writes_pump_csv_into_combo_folder(tmp_path: Path) -> None:
     pump = FakePump()
     with pump:
         worker = PumpWorker(
-            pump=pump, state=state, command_queue=cmd_q,
-            stop_event=stop, error_event=error,
-            log_interval_s=0.05, experiment_dir=exp,
+            pump=pump,
+            state=state,
+            command_queue=cmd_q,
+            stop_event=stop,
+            error_event=error,
+            log_interval_s=0.05,
+            experiment_dir=exp,
         )
         t = threading.Thread(target=worker.run)
         t.start()
@@ -57,9 +63,13 @@ def test_rotates_csv_when_combo_changes(tmp_path: Path) -> None:
     pump = FakePump()
     with pump:
         worker = PumpWorker(
-            pump=pump, state=state, command_queue=cmd_q,
-            stop_event=stop, error_event=error,
-            log_interval_s=0.04, experiment_dir=exp,
+            pump=pump,
+            state=state,
+            command_queue=cmd_q,
+            stop_event=stop,
+            error_event=error,
+            log_interval_s=0.04,
+            experiment_dir=exp,
         )
         t = threading.Thread(target=worker.run)
         t.start()
@@ -88,9 +98,13 @@ def test_consumes_set_speed_command(tmp_path: Path) -> None:
         stop = threading.Event()
         error = threading.Event()
         worker = PumpWorker(
-            pump=pump, state=state, command_queue=cmd_q,
-            stop_event=stop, error_event=error,
-            log_interval_s=0.05, experiment_dir=exp,
+            pump=pump,
+            state=state,
+            command_queue=cmd_q,
+            stop_event=stop,
+            error_event=error,
+            log_interval_s=0.05,
+            experiment_dir=exp,
         )
         t = threading.Thread(target=worker.run)
         t.start()
@@ -118,9 +132,13 @@ def test_sets_error_event_on_pump_failure(tmp_path: Path) -> None:
         stop = threading.Event()
         error = threading.Event()
         worker = PumpWorker(
-            pump=pump, state=state, command_queue=cmd_q,
-            stop_event=stop, error_event=error,
-            log_interval_s=0.05, experiment_dir=exp,
+            pump=pump,
+            state=state,
+            command_queue=cmd_q,
+            stop_event=stop,
+            error_event=error,
+            log_interval_s=0.05,
+            experiment_dir=exp,
         )
         t = threading.Thread(target=worker.run)
         t.start()

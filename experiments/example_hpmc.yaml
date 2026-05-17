@@ -2,22 +2,20 @@
 experiment_id: HPMC_Test_01
 nozzle_id: 1mm_A
 
-actuation:
-  frequency_hz: 200            # Hz
-  voltage_v: 5                 # V
-  vibrometer_factor_um_per_v: 5280   # um per V
+vibrometer:
+  factor_um_per_v: 5280
 
-# Each step holds the pump at speed_rpm for hold_s seconds.
-# Imaging duration per step is hold_s - timing.stabilization_s.
-ramp:
-  - { speed_rpm: 200, hold_s: 30 }
-  - { speed_rpm: 250, hold_s: 30 }
-  - { speed_rpm: 300, hold_s: 60 }
-  - { speed_rpm: 350, hold_s: 60 }
-  - { speed_rpm: 400, hold_s: 120 }
+# Full cross product is fired in order: rpm outermost, then frequency, then amplitude.
+sweep:
+  speeds_rpm:     [200, 800, 1000]
+  frequencies_hz: [20, 25, 30]
+  amplitudes_vpp: [3.0, 5.0, 9.0]
+  hold_s: 30                          # per combination
 
 timing:
-  stabilization_s: 10
+  stabilization_rpm_change_s: 10
+  stabilization_freq_change_s: 3
+  stabilization_amp_change_s: 1
   image_interval_s: 5
   camera_latency_tolerance_s: 1.0
 
@@ -32,8 +30,14 @@ devices:
     visa_resource: "USB0::0x2A8D::0x1778::MY55440264::0::INSTR"
   camera:
     digicam_url: "http://localhost:5513"
+  function_generator:
+    port: COM4
+    channel: 1
+    baudrate: 115200
   scale:
     enabled: false
+    baudrate: 1200
+    interval_s: 5
 
 output:
   base_dir: 'W:\PROMOTION_SHARIFSOLTANI_VERKAPSELUNG_DFG_TH1817_9_1_MT\PYTHON\Project_files\DATA'

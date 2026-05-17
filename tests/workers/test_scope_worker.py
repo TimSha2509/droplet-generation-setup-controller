@@ -8,7 +8,9 @@ from droplet_lab.storage import ExperimentDirectory, combo_folder_name
 from droplet_lab.workers.scope_worker import ScopeWorker
 
 
-def _make_combo_folder(exp: ExperimentDirectory, idx: int, rpm: int, freq: float, amp: float) -> Path:
+def _make_combo_folder(
+    exp: ExperimentDirectory, idx: int, rpm: int, freq: float, amp: float
+) -> Path:
     folder = exp.steps_dir / combo_folder_name(idx, rpm, freq, amp)
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "images").mkdir(exist_ok=True)

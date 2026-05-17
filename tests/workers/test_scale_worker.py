@@ -17,9 +17,12 @@ def test_scale_worker_writes_sweep_rows_with_full_combo_tags(tmp_path: Path) -> 
     error = threading.Event()
     with scale:
         worker = ScaleWorker(
-            scale=scale, state=state,
-            stop_event=stop, error_event=error,
-            log_interval_s=0.05, experiment_dir=exp,
+            scale=scale,
+            state=state,
+            stop_event=stop,
+            error_event=error,
+            log_interval_s=0.05,
+            experiment_dir=exp,
         )
         t = threading.Thread(target=worker.run)
         t.start()
@@ -29,9 +32,13 @@ def test_scale_worker_writes_sweep_rows_with_full_combo_tags(tmp_path: Path) -> 
     assert not error.is_set()
     lines = (exp.root / "scale.csv").read_text().splitlines()
     assert lines[0].split(";") == [
-        "timestamp_utc", "elapsed_s", "phase",
-        "combo_index", "set_speed_rpm",
-        "set_frequency_hz", "set_amplitude_vpp",
+        "timestamp_utc",
+        "elapsed_s",
+        "phase",
+        "combo_index",
+        "set_speed_rpm",
+        "set_frequency_hz",
+        "set_amplitude_vpp",
         "weight_g",
     ]
     for line in lines[1:]:
@@ -52,9 +59,12 @@ def test_scale_worker_respects_log_interval(tmp_path: Path) -> None:
     error = threading.Event()
     with scale:
         worker = ScaleWorker(
-            scale=scale, state=state,
-            stop_event=stop, error_event=error,
-            log_interval_s=0.2, experiment_dir=exp,
+            scale=scale,
+            state=state,
+            stop_event=stop,
+            error_event=error,
+            log_interval_s=0.2,
+            experiment_dir=exp,
         )
         t = threading.Thread(target=worker.run)
         t.start()

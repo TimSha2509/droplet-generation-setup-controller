@@ -76,24 +76,14 @@ class PSG9080Generator:
 
     def set_frequency_hz(self, hz: float) -> None:
         scaled = int(round(hz * 1000))
-        cmd = (
-            f":w13={scaled},0."
-            if self._channel == 1
-            else f":w14={scaled},0."
-        )
+        cmd = f":w13={scaled},0." if self._channel == 1 else f":w14={scaled},0."
         self._send(cmd)
 
     def set_amplitude_vpp(self, vpp: float) -> None:
         if vpp > MAX_AMPLITUDE_VPP:
-            raise ValueError(
-                f"amplitude {vpp} Vpp exceeds hardware limit {MAX_AMPLITUDE_VPP} Vpp"
-            )
+            raise ValueError(f"amplitude {vpp} Vpp exceeds hardware limit {MAX_AMPLITUDE_VPP} Vpp")
         scaled = int(round(vpp * 1000))
-        cmd = (
-            f":w15={scaled}."
-            if self._channel == 1
-            else f":w16={scaled}."
-        )
+        cmd = f":w15={scaled}." if self._channel == 1 else f":w16={scaled}."
         self._send(cmd)
 
     def enable_output(self, on: bool) -> None:

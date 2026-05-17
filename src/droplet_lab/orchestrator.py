@@ -257,16 +257,19 @@ class Orchestrator:
             if combo.combo_index == 1:
                 fg.enable_output(True)
 
-            step_folder = first_folder if combo.combo_index == 1 \
-                else exp.create_combo_folder(combo)
+            step_folder = first_folder if combo.combo_index == 1 else exp.create_combo_folder(combo)
             step_meta = self._initial_step_meta(combo)
             self._write_step_json(step_folder, step_meta)
 
             stabilization = self._stabilization_for(combo.changed)
             self._log.info(
                 "combo {} rpm={} freq={}Hz amp={}Vpp changed={} - stabilizing {}s",
-                combo.combo_index, combo.set_speed_rpm, combo.frequency_hz,
-                combo.amplitude_vpp, combo.changed, stabilization,
+                combo.combo_index,
+                combo.set_speed_rpm,
+                combo.frequency_hz,
+                combo.amplitude_vpp,
+                combo.changed,
+                stabilization,
             )
             step_meta["status"] = StepStatus.STABILIZING.value
             self._write_step_json(step_folder, step_meta)
@@ -304,7 +307,9 @@ class Orchestrator:
                     step_meta["status"] = StepStatus.COMPLETED_NO_IMAGING.value
                     step_meta["camera_status"] = CameraStatus.NOT_STARTED.value
                     self._write_step_json(step_folder, step_meta)
-                    self._append_runs_row(exp, combo, step_folder, step_meta, "completed_no_imaging", None)
+                    self._append_runs_row(
+                        exp, combo, step_folder, step_meta, "completed_no_imaging", None
+                    )
                 case CameraResultStatus.ABORTED:
                     step_meta["status"] = StepStatus.ABORTED.value
                     step_meta["camera_status"] = CameraStatus.ABORTED.value
@@ -316,8 +321,9 @@ class Orchestrator:
                     step_meta["camera_status"] = CameraStatus.FAILED.value
                     step_meta["camera_error"] = result.error
                     self._write_step_json(step_folder, step_meta)
-                    self._append_runs_row(exp, combo, step_folder, step_meta,
-                                          "camera_failed", result.error)
+                    self._append_runs_row(
+                        exp, combo, step_folder, step_meta, "camera_failed", result.error
+                    )
                     return ExperimentStatus.FAILED, f"camera failed at combo {combo.combo_index}"
 
         return ExperimentStatus.COMPLETED, None

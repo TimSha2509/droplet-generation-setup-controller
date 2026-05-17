@@ -8,17 +8,18 @@ import time
 
 PORT = "COM4"
 
-CHANNEL = 1              # 1 or 2
-FREQUENCY_HZ = 10      # Frequency in Hz
-AMPLITUDE_VPP = 5     # Amplitude in Vpp
+CHANNEL = 1  # 1 or 2
+FREQUENCY_HZ = 10  # Frequency in Hz
+AMPLITUDE_VPP = 5  # Amplitude in Vpp
 
-ENABLE_OUTPUT = True     # True = output on, False = output off
-SET_SINE_WAVE = True     # True = set waveform to sine first
+ENABLE_OUTPUT = True  # True = output on, False = output off
+SET_SINE_WAVE = True  # True = set waveform to sine first
 
 
 # =========================
 # PSG9080 CONTROL CLASS
 # =========================
+
 
 class PSG9080:
     def __init__(self, port="COM4", baudrate=115200, timeout=1):

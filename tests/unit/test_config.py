@@ -179,7 +179,5 @@ def test_vibrometer_factor_must_be_positive() -> None:
 
 
 def test_sweep_config_standalone() -> None:
-    s = SweepConfig(
-        speeds_rpm=[200], frequencies_hz=[20.0], amplitudes_vpp=[3.0], hold_s=1.0
-    )
+    s = SweepConfig(speeds_rpm=[200], frequencies_hz=[20.0], amplitudes_vpp=[3.0], hold_s=1.0)
     assert s.speeds_rpm == [200]

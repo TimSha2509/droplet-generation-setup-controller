@@ -28,12 +28,21 @@ def test_changed_flag_tracks_outer_to_inner() -> None:
         hold_s=1.0,
     )
     assert [c.changed for c in combos] == [
-        "initial", "amp", "freq", "amp", "rpm", "amp", "freq", "amp",
+        "initial",
+        "amp",
+        "freq",
+        "amp",
+        "rpm",
+        "amp",
+        "freq",
+        "amp",
     ]
 
 
 def test_combo_index_is_one_based_and_consecutive() -> None:
-    combos = expand_sweep(speeds_rpm=[1], frequencies_hz=[1.0], amplitudes_vpp=[1.0, 2.0, 3.0], hold_s=1.0)
+    combos = expand_sweep(
+        speeds_rpm=[1], frequencies_hz=[1.0], amplitudes_vpp=[1.0, 2.0, 3.0], hold_s=1.0
+    )
     assert [c.combo_index for c in combos] == [1, 2, 3]
 
 
@@ -44,7 +53,9 @@ def test_single_combination_is_initial() -> None:
 
 
 def test_hold_s_propagated() -> None:
-    combos = expand_sweep(speeds_rpm=[200], frequencies_hz=[20.0], amplitudes_vpp=[3.0], hold_s=42.0)
+    combos = expand_sweep(
+        speeds_rpm=[200], frequencies_hz=[20.0], amplitudes_vpp=[3.0], hold_s=42.0
+    )
     assert combos[0].hold_s == 42.0
 
 

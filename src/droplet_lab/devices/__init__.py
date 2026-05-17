@@ -65,9 +65,7 @@ def build_camera(cfg: CameraConfig, *, simulate: bool) -> Camera:
     return DigiCamCamera(url=cfg.digicam_url, request_timeout_s=cfg.request_timeout_s)
 
 
-def build_function_generator(
-    cfg: FunctionGeneratorConfig, *, simulate: bool
-) -> FunctionGenerator:
+def build_function_generator(cfg: FunctionGeneratorConfig, *, simulate: bool) -> FunctionGenerator:
     if simulate:
         return FakeFunctionGenerator()
     return PSG9080Generator(port=cfg.port, channel=cfg.channel, baudrate=cfg.baudrate)

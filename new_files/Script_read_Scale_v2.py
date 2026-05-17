@@ -20,6 +20,7 @@ ser = serial.Serial(
 
 pattern = re.compile(r"([+-]?\s*\d+\.\d+)\s*([a-zA-Z]+)")
 
+
 def read_valid_weight(max_wait_seconds=4):
     start = time.time()
 

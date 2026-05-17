@@ -66,7 +66,5 @@ def test_build_function_generator_returns_fake_when_simulating() -> None:
 
 
 def test_build_function_generator_returns_real_when_not_simulating() -> None:
-    fg = build_function_generator(
-        FunctionGeneratorConfig(port="COMX", channel=2), simulate=False
-    )
+    fg = build_function_generator(FunctionGeneratorConfig(port="COMX", channel=2), simulate=False)
     assert isinstance(fg, PSG9080Generator)

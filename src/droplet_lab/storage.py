@@ -58,8 +58,7 @@ def combo_folder_name(
     Format: ``combo_<NNN>_rpm<RRRR>_f<FREQ>Hz_amp<AMP>V``.
     """
     return (
-        f"combo_{combo_index:03d}_rpm{set_speed_rpm:04d}"
-        f"_f{frequency_hz:g}Hz_amp{amplitude_vpp:g}V"
+        f"combo_{combo_index:03d}_rpm{set_speed_rpm:04d}_f{frequency_hz:g}Hz_amp{amplitude_vpp:g}V"
     )
 
 
