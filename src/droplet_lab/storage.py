@@ -33,6 +33,7 @@ _INVALID_FILENAME_CHARS = '<>:"/\\|?*'
 
 
 def sanitize_filename(text: str) -> str:
+    """Strip characters that aren't safe in filenames; collapse whitespace to ``_``."""
     out = text
     for ch in _INVALID_FILENAME_CHARS:
         out = out.replace(ch, "_")
@@ -40,10 +41,12 @@ def sanitize_filename(text: str) -> str:
 
 
 def utc_now_iso() -> str:
+    """UTC timestamp in ISO 8601 with microseconds and a ``Z`` suffix."""
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
 
 
 def utc_now_filename_safe() -> str:
+    """UTC timestamp with characters that survive Windows path rules."""
     return datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S")
 
 
@@ -191,6 +194,10 @@ class ExperimentDirectory:
         return self.root / "steps"
 
     @property
+    def scale_csv_path(self) -> Path:
+        return self.root / "scale.csv"
+
+    @property
     def runs_csv_path(self) -> Path:
         return self.root / "runs.csv"
 
@@ -213,10 +220,8 @@ class ExperimentDirectory:
         (folder / "images").mkdir(exist_ok=True)
         return folder
 
-    def append_scale_row(self, row: ScaleRow) -> None:
-        """Append one row to scale.csv (creates the file + header on first call)."""
-        path = self.root / "scale.csv"
-        fieldnames = _fieldnames_for(ScaleRow)
+    def _append_row(self, path: Path, row: Any, row_cls: type) -> None:
+        fieldnames = _fieldnames_for(row_cls)
         is_new = not path.exists()
         with path.open("a", encoding="utf-8", newline="") as fp:
             writer = csv.DictWriter(fp, fieldnames=fieldnames, delimiter=";")
@@ -226,17 +231,13 @@ class ExperimentDirectory:
             sanitized = {k: ("" if v is None else v) for k, v in data.items()}
             writer.writerow(sanitized)
 
+    def append_scale_row(self, row: ScaleRow) -> None:
+        """Append one row to scale.csv (creates the file + header on first call)."""
+        self._append_row(self.scale_csv_path, row, ScaleRow)
+
     def append_runs_row(self, row: RunsRow) -> None:
-        path = self.runs_csv_path
-        fieldnames = _fieldnames_for(RunsRow)
-        is_new = not path.exists()
-        with path.open("a", encoding="utf-8", newline="") as fp:
-            writer = csv.DictWriter(fp, fieldnames=fieldnames, delimiter=";")
-            if is_new:
-                writer.writeheader()
-            data = asdict(row)
-            sanitized = {k: ("" if v is None else v) for k, v in data.items()}
-            writer.writerow(sanitized)
+        """Append one row to runs.csv (creates the file + header on first call)."""
+        self._append_row(self.runs_csv_path, row, RunsRow)
 
     @staticmethod
     def write_json(path: Path, payload: dict[str, Any]) -> None:

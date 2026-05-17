@@ -55,6 +55,7 @@ def test_rotating_csv_writer_writes_header_and_rotates(tmp_path: Path) -> None:
     text_a = (folder_a / "pump.csv").read_text()
     text_b = (folder_b / "pump.csv").read_text()
     assert "combo_index" in text_a.splitlines()[0]
+    assert "combo_index" in text_b.splitlines()[0]
     assert text_a.count("\n") == 2  # header + 1 row
     assert text_b.count("\n") == 2
 
@@ -101,22 +102,58 @@ def test_append_runs_row_writes_header_once(tmp_path: Path) -> None:
     assert len(lines) == 3  # header + 2 rows
 
 
-def test_oscilloscope_row_has_new_columns() -> None:
-    row = OscilloscopeRow(
-        timestamp_utc=utc_now_iso(),
-        elapsed_s=0.0,
-        combo_index=1,
-        set_speed_rpm=200,
-        set_frequency_hz=20.0,
-        set_amplitude_vpp=3.0,
-        frequency_hz=20.0,
-        vpp_v=3.1,
-        p2p_displacement_um=16368.0,
-        ch2_vrms_dc_v=None,
-        ch3_vrms_dc_v=None,
+def test_oscilloscope_row_none_fields_serialize_as_empty_cells(tmp_path: Path) -> None:
+    exp = ExperimentDirectory.create(base_dir=tmp_path, experiment_id="X")
+    folder = exp.create_combo_folder(_combo(1))
+    writer = RotatingCsvWriter(OscilloscopeRow)
+    writer.open_in(folder, "oscilloscope.csv")
+    writer.write(
+        OscilloscopeRow(
+            timestamp_utc=utc_now_iso(),
+            elapsed_s=0.0,
+            combo_index=1,
+            set_speed_rpm=200,
+            set_frequency_hz=20.0,
+            set_amplitude_vpp=3.0,
+            frequency_hz=None,
+            vpp_v=None,
+            p2p_displacement_um=None,
+            ch2_vrms_dc_v=None,
+            ch3_vrms_dc_v=None,
+        )
     )
-    assert row.set_frequency_hz == 20.0
+    writer.close()
+    lines = (folder / "oscilloscope.csv").read_text().splitlines()
+    # data row should have empty trailing cells, NOT the string "None"
+    assert "None" not in lines[1]
+    # exactly 5 trailing empty fields (frequency_hz..ch3_vrms_dc_v)
+    assert lines[1].endswith(";;;;;")
 
 
 def test_sanitize_filename_strips_unsafe_chars() -> None:
     assert sanitize_filename("a/b\\c:d*e") == "a_b_c_d_e"
+
+
+def test_utc_now_iso_format() -> None:
+    from datetime import datetime
+
+    ts = utc_now_iso()
+    # round-trip parse — drop the trailing 'Z' for fromisoformat
+    parsed = datetime.fromisoformat(ts.rstrip("Z"))
+    assert parsed.year >= 2025
+
+
+def test_experiment_directory_creates_layout(tmp_path: Path) -> None:
+    exp = ExperimentDirectory.create(base_dir=tmp_path, experiment_id="X")
+    assert exp.root.is_dir()
+    assert exp.steps_dir.is_dir()
+
+
+def test_write_json_pretty(tmp_path: Path) -> None:
+    path = tmp_path / "thing.json"
+    ExperimentDirectory.write_json(path, {"a": 1, "b": [2, 3]})
+    import json
+
+    assert json.loads(path.read_text()) == {"a": 1, "b": [2, 3]}
+    # Should be pretty-printed with indent=2
+    assert "\n  " in path.read_text()
