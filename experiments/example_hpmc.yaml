@@ -7,15 +7,15 @@ vibrometer:
 
 # Full cross product is fired in order: rpm outermost, then frequency, then amplitude.
 sweep:
-  speeds_rpm:     [200, 800, 1000]
-  frequencies_hz: [20, 25, 30]
-  amplitudes_vpp: [3.0, 5.0, 9.0]
-  hold_s: 30                          # per combination
+  speeds_rpm:     [150, 400]
+  frequencies_hz: [20, 40]
+  amplitudes_vpp: [1.0, 3.0]
+  hold_s: 300                          # per combination
 
 timing:
   stabilization_rpm_change_s: 10
-  stabilization_freq_change_s: 3
-  stabilization_amp_change_s: 1
+  stabilization_freq_change_s: 2
+  stabilization_amp_change_s: 2
   image_interval_s: 5
   camera_latency_tolerance_s: 1.0
 
@@ -35,7 +35,7 @@ devices:
     channel: 1
     baudrate: 115200
   scale:
-    enabled: false
+    enabled: true
     baudrate: 1200
     interval_s: 5
 

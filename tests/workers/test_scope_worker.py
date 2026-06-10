@@ -1,7 +1,9 @@
+import csv
 import threading
 import time
 from pathlib import Path
 
+from droplet_lab.devices.base import ScopeMeasurement
 from droplet_lab.devices.oscilloscope_fake import FakeOscilloscope
 from droplet_lab.state import ExperimentState
 from droplet_lab.storage import ExperimentDirectory, combo_folder_name
@@ -47,6 +49,48 @@ def test_writes_oscilloscope_csv_into_combo_folder(tmp_path: Path) -> None:
     text = (combo_folder / "oscilloscope.csv").read_text()
     assert "set_frequency_hz" in text.splitlines()[0]
     assert text.count("\n") >= 2
+
+
+def test_logs_scope_frequency_unchanged_from_measurement(tmp_path: Path) -> None:
+    class FixedScope(FakeOscilloscope):
+        def measure(self) -> ScopeMeasurement:
+            return ScopeMeasurement(
+                frequency_hz=5.5,
+                vpp_v=1.0,
+                ch2_vrms_dc_v=0.5,
+                ch3_vrms_dc_v=0.5,
+            )
+
+    state = ExperimentState()
+    state.update(combo_index=1, set_speed_rpm=200, set_frequency_hz=5.5, set_amplitude_vpp=3.0)
+    exp = ExperimentDirectory.create(base_dir=tmp_path, experiment_id="X")
+    _make_combo_folder(exp, 1, 200, 5.5, 3.0)
+    scope = FixedScope(state=state)
+    stop = threading.Event()
+    error = threading.Event()
+
+    with scope:
+        worker = ScopeWorker(
+            scope=scope,
+            state=state,
+            stop_event=stop,
+            error_event=error,
+            log_interval_s=0.05,
+            vibrometer_factor_um_per_v=5280.0,
+            experiment_dir=exp,
+        )
+        t = threading.Thread(target=worker.run)
+        t.start()
+        time.sleep(0.12)
+        stop.set()
+        t.join(timeout=2.0)
+
+    assert not error.is_set()
+    path = exp.steps_dir / combo_folder_name(1, 200, 5.5, 3.0) / "oscilloscope.csv"
+    with path.open(encoding="utf-8", newline="") as fp:
+        rows = list(csv.DictReader(fp, delimiter=";"))
+    assert rows
+    assert float(rows[0]["frequency_hz"]) == 5.5
 
 
 def test_rotates_csv_when_combo_changes(tmp_path: Path) -> None:

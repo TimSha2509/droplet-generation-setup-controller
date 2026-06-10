@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import pyvisa
 import pytest
 
 from droplet_lab.devices.oscilloscope_keysight import KeysightOscilloscope
@@ -68,3 +69,25 @@ def test_measure_returns_none_on_invalid_value(fake_rm: MagicMock, fake_scope: M
     assert m.vpp_v is None
     assert m.ch2_vrms_dc_v is None
     assert m.ch3_vrms_dc_v == 0.5
+
+
+def test_measure_returns_none_for_timed_out_measurement(
+    fake_rm: MagicMock, fake_scope: MagicMock
+) -> None:
+    fake_scope.query.side_effect = [
+        pyvisa.errors.VisaIOError(pyvisa.constants.StatusCode.error_timeout),
+        "0.42",
+        "0.51",
+        "0.49",
+    ]
+    with (
+        patch(
+            "droplet_lab.devices.oscilloscope_keysight.pyvisa.ResourceManager", return_value=fake_rm
+        ),
+        KeysightOscilloscope(visa_resource="USB0::INSTR") as scope,
+    ):
+        m = scope.measure()
+    assert m.frequency_hz is None
+    assert m.vpp_v == 0.42
+    assert m.ch2_vrms_dc_v == 0.51
+    assert m.ch3_vrms_dc_v == 0.49

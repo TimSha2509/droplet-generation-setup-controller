@@ -1,4 +1,5 @@
 import json
+import signal
 import threading
 import time
 from pathlib import Path
@@ -11,6 +12,7 @@ from droplet_lab.devices.pump_fake import FakePump
 from droplet_lab.devices.scale_fake import FakeScale
 from droplet_lab.orchestrator import DeviceBundle, Orchestrator, OrchestratorResult
 from droplet_lab.state import ExperimentState, ExperimentStatus, StepStatus
+from droplet_lab.storage import combo_folder_name
 
 
 def _build_devices(state: ExperimentState, *, camera: FakeCamera | None = None) -> DeviceBundle:
@@ -67,6 +69,9 @@ def test_single_combination_completes(minimal_config: ExperimentConfig) -> None:
         assert (combo / "pump.csv").exists(), combo
         assert (combo / "oscilloscope.csv").exists(), combo
         meta = json.loads((combo / "step.json").read_text())
+        assert meta["experiment_id"] == minimal_config.experiment_id
+        assert meta["nozzle_id"] == minimal_config.nozzle_id
+        assert meta["vibrometer_factor_um_per_v"] == minimal_config.vibrometer.factor_um_per_v
         assert meta["status"] in {
             StepStatus.COMPLETED.value,
             StepStatus.COMPLETED_NO_IMAGING.value,
@@ -79,6 +84,27 @@ def test_ctrl_c_aborts_cleanly(minimal_config: ExperimentConfig) -> None:
     devices = _build_devices(state)
     result = _run(minimal_config, devices, stop_after_s=0.05)
     assert result.status is ExperimentStatus.ABORTED
+
+
+def test_installed_sigint_handler_aborts_run(minimal_config: ExperimentConfig) -> None:
+    class InterruptingCamera(FakeCamera):
+        def trigger_capture(self) -> None:
+            signal.raise_signal(signal.SIGINT)
+
+    previous_handler = signal.getsignal(signal.SIGINT)
+    state = ExperimentState()
+    devices = _build_devices(state, camera=InterruptingCamera())
+
+    result = Orchestrator(
+        config=minimal_config,
+        devices=devices,
+        state=state,
+        install_signal_handler=True,
+    ).run()
+
+    assert result.status is ExperimentStatus.ABORTED
+    assert result.failure_reason == "interrupted by Ctrl-C"
+    assert signal.getsignal(signal.SIGINT) is previous_handler
 
 
 def test_camera_failure_marks_experiment_failed(minimal_config: ExperimentConfig) -> None:
@@ -198,3 +224,42 @@ def test_full_sweep_writes_eight_combos_in_order(tmp_path: Path) -> None:
     payload = json.loads((root / "experiment.json").read_text())
     assert payload["status"] == "completed"
     assert payload["initial_weight_g"] is not None
+
+
+def test_combo_folder_exists_before_state_advances(
+    minimal_config: ExperimentConfig, tmp_path: Path
+) -> None:
+    class FolderGuardState(ExperimentState):
+        def update(
+            self,
+            *,
+            combo_index: int,
+            set_speed_rpm: int,
+            set_frequency_hz: float,
+            set_amplitude_vpp: float,
+        ) -> None:
+            if combo_index > 1:
+                expected = combo_folder_name(
+                    combo_index, set_speed_rpm, set_frequency_hz, set_amplitude_vpp
+                )
+                assert any(tmp_path.glob(f"*/steps/{expected}"))
+            super().update(
+                combo_index=combo_index,
+                set_speed_rpm=set_speed_rpm,
+                set_frequency_hz=set_frequency_hz,
+                set_amplitude_vpp=set_amplitude_vpp,
+            )
+
+    cfg = minimal_config.model_copy(
+        update={
+            "sweep": minimal_config.sweep.model_copy(
+                update={"amplitudes_vpp": [3.0, 5.0], "hold_s": 0.2}
+            )
+        }
+    )
+    state = FolderGuardState()
+    devices = _build_devices(state)
+
+    result = Orchestrator(config=cfg, devices=devices, state=state).run()
+
+    assert result.status is ExperimentStatus.COMPLETED, result.failure_reason

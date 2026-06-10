@@ -1,8 +1,8 @@
 """DigiCamControl HTTP client.
 
 DigiCamControl exposes an HTTP server (default port 5513). Requests are
-URL-parameterised commands; ``slc=set`` writes a property, ``slc=capture``
-fires the shutter.
+URL-parameterised commands; ``slc=set`` writes a property, ``slc=CaptureNoAf``
+fires the shutter without an autofocus cycle.
 
 Reference: https://digicamcontrol.com/doc/userguide/web
 """
@@ -50,4 +50,4 @@ class DigiCamCamera:
         self._log.info("camera folder set to {}", folder)
 
     def trigger_capture(self) -> None:
-        self._get({"slc": "capture", "param1": "", "param2": ""})
+        self._get({"slc": "CaptureNoAf", "param1": "", "param2": ""})

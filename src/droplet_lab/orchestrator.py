@@ -96,6 +96,11 @@ class Orchestrator:
     def request_stop(self) -> None:
         self._stop.set()
 
+    def _handle_sigint(self, _signum: int, _frame: Any) -> None:
+        self._stop.set()
+        self._log.warning("Ctrl-C received; aborting experiment")
+        raise KeyboardInterrupt
+
     def run(self) -> OrchestratorResult:
         exp = ExperimentDirectory.create(
             base_dir=self._cfg.output.base_dir,
@@ -105,14 +110,17 @@ class Orchestrator:
         self._log.info("experiment dir: {}", exp.root)
         self._write_experiment_json(exp, status=ExperimentStatus.RUNNING)
 
-        if self._install_signal_handler:
-            signal.signal(signal.SIGINT, lambda *_: self._stop.set())
-
         result_status = ExperimentStatus.RUNNING
         failure_reason: str | None = None
         cmd_q: queue.Queue[SetSpeedCommand] = queue.Queue()
+        threads: list[threading.Thread] = []
+        previous_sigint_handler: Any = None
 
         try:
+            if self._install_signal_handler:
+                previous_sigint_handler = signal.getsignal(signal.SIGINT)
+                signal.signal(signal.SIGINT, self._handle_sigint)
+
             with ExitStack() as stack:
                 pump = stack.enter_context(self._devices["pump"])
                 scope = stack.enter_context(self._devices["scope"])
@@ -179,8 +187,9 @@ class Orchestrator:
                     vibrometer_factor_um_per_v=self._cfg.vibrometer.factor_um_per_v,
                     experiment_dir=exp,
                 )
-                pump_thread = threading.Thread(target=pump_worker.run, name="pump")
-                scope_thread = threading.Thread(target=scope_worker.run, name="scope")
+                pump_thread = threading.Thread(target=pump_worker.run, name="pump", daemon=True)
+                scope_thread = threading.Thread(target=scope_worker.run, name="scope", daemon=True)
+                threads.extend([pump_thread, scope_thread])
                 pump_thread.start()
                 scope_thread.start()
 
@@ -194,32 +203,38 @@ class Orchestrator:
                         log_interval_s=self._cfg.devices.scale.interval_s,
                         experiment_dir=exp,
                     )
-                    scale_thread = threading.Thread(target=scale_worker.run, name="scale")
+                    scale_thread = threading.Thread(target=scale_worker.run, name="scale", daemon=True)
+                    threads.append(scale_thread)
                     scale_thread.start()
 
-                result_status, failure_reason = self._walk_sweep(
-                    exp=exp,
-                    combos=combos,
-                    first_folder=first_folder,
-                    cmd_q=cmd_q,
-                    camera=self._devices["camera"],
-                    fg=fg,
-                )
-
-                self._stop.set()
-                pump_thread.join(timeout=10.0)
-                scope_thread.join(timeout=10.0)
-                if scale_thread is not None:
-                    scale_thread.join(timeout=10.0)
+                try:
+                    result_status, failure_reason = self._walk_sweep(
+                        exp=exp,
+                        combos=combos,
+                        first_folder=first_folder,
+                        cmd_q=cmd_q,
+                        camera=self._devices["camera"],
+                        fg=fg,
+                    )
+                finally:
+                    self._stop.set()
+                    for thread in threads:
+                        thread.join(timeout=10.0)
 
                 if self._error.is_set() and result_status is ExperimentStatus.COMPLETED:
                     result_status = ExperimentStatus.FAILED
                     failure_reason = failure_reason or "worker thread reported error"
 
+        except KeyboardInterrupt:
+            result_status = ExperimentStatus.ABORTED
+            failure_reason = "interrupted by Ctrl-C"
         except Exception as e:
             self._log.exception("orchestrator crashed")
             result_status = ExperimentStatus.FAILED
             failure_reason = str(e)
+        finally:
+            if self._install_signal_handler and previous_sigint_handler is not None:
+                signal.signal(signal.SIGINT, previous_sigint_handler)
 
         self._write_experiment_json(exp, status=result_status, failure_reason=failure_reason)
         return OrchestratorResult(
@@ -242,6 +257,8 @@ class Orchestrator:
             if self._stop.is_set() or self._error.is_set():
                 return self._final_status_after_break(), None
 
+            step_folder = first_folder if combo.combo_index == 1 else exp.create_combo_folder(combo)
+
             if combo.combo_index > 1:
                 self._state.update(
                     combo_index=combo.combo_index,
@@ -259,7 +276,6 @@ class Orchestrator:
             if combo.combo_index == 1:
                 fg.enable_output(True)
 
-            step_folder = first_folder if combo.combo_index == 1 else exp.create_combo_folder(combo)
             step_meta = self._initial_step_meta(combo)
             self._write_step_json(step_folder, step_meta)
 
@@ -354,6 +370,9 @@ class Orchestrator:
 
     def _initial_step_meta(self, combo: SweepCombination) -> dict[str, Any]:
         return {
+            "experiment_id": self._cfg.experiment_id,
+            "nozzle_id": self._cfg.nozzle_id,
+            "vibrometer_factor_um_per_v": self._cfg.vibrometer.factor_um_per_v,
             "combo_index": combo.combo_index,
             "set_speed_rpm": combo.set_speed_rpm,
             "set_frequency_hz": combo.frequency_hz,

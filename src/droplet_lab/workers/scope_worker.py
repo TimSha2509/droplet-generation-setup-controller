@@ -18,6 +18,9 @@ from droplet_lab.storage import (
     utc_now_iso,
 )
 
+# The scope returns the frequency in Hz directly.
+_FREQUENCY_MEASUREMENT_DIVIDER = 1.0
+
 
 class ScopeWorker:
     def __init__(
@@ -67,7 +70,7 @@ class ScopeWorker:
                                 set_speed_rpm=snap.set_speed_rpm,
                                 set_frequency_hz=snap.set_frequency_hz,
                                 set_amplitude_vpp=snap.set_amplitude_vpp,
-                                frequency_hz=m.frequency_hz,
+                                frequency_hz=self._logged_frequency_hz(m.frequency_hz),
                                 vpp_v=m.vpp_v,
                                 p2p_displacement_um=p2p,
                                 ch2_vrms_dc_v=m.ch2_vrms_dc_v,
@@ -82,6 +85,11 @@ class ScopeWorker:
         finally:
             writer.close()
             self._log.info("scope worker finished")
+
+    def _logged_frequency_hz(self, measured_hz: float | None) -> float | None:
+        if measured_hz is None:
+            return None
+        return measured_hz / _FREQUENCY_MEASUREMENT_DIVIDER
 
     def _combo_folder(self, snap: ExperimentStateSnapshot) -> Path:
         # Caller guarantees combo_index is non-None; orchestrator updates all four

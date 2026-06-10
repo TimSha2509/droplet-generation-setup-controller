@@ -34,8 +34,8 @@ def test_enter_opens_serial_and_sets_sine_output_off() -> None:
 def test_set_frequency_scales_by_1000_channel_1() -> None:
     fg, fake = _open(channel=1)
     fake.reset_mock()
-    fg.set_frequency_hz(20.0)
-    assert _written(fake) == [b":w13=20000,0.\r\n"]
+    fg.set_frequency_hz(5.5)
+    assert _written(fake) == [b":w13=5500,0.\r\n"]
     fg.__exit__(None, None, None)
 
 

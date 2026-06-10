@@ -28,7 +28,7 @@ def test_set_output_folder_calls_session_folder() -> None:
         )
 
 
-def test_trigger_capture_calls_capture_endpoint() -> None:
+def test_trigger_capture_calls_capture_no_af_endpoint() -> None:
     with patch(
         "droplet_lab.devices.camera_digicam.requests.get", return_value=_ok_response()
     ) as get:
@@ -36,7 +36,7 @@ def test_trigger_capture_calls_capture_endpoint() -> None:
             cam.set_output_folder(Path("C:/data/step_01"))
             cam.trigger_capture()
         calls = [c.kwargs.get("params") for c in get.call_args_list]
-        assert any(p and p.get("slc") == "capture" for p in calls)
+        assert any(p and p.get("slc") == "CaptureNoAf" for p in calls)
 
 
 def test_http_error_raises(tmp_path: Path) -> None:

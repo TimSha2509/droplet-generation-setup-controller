@@ -69,13 +69,24 @@ class KeysightOscilloscope:
             raise RuntimeError("Oscilloscope is not open")
         return self._scope.query(scpi)
 
+    def _query_measurement(self, scpi: str) -> str | None:
+        try:
+            return self._query(scpi)
+        except pyvisa.errors.VisaIOError as exc:
+            self._log.warning("scope measurement query failed for {}: {}", scpi, exc)
+            return None
+
     def identify(self) -> str:
         return self._query("*IDN?").strip()
 
     def measure(self) -> ScopeMeasurement:
         return ScopeMeasurement(
-            frequency_hz=_safe_float(self._query(":MEASure:FREQuency? CHANnel1")),
-            vpp_v=_safe_float(self._query(":MEASure:VPP? CHANnel1")),
-            ch2_vrms_dc_v=_safe_float(self._query(":MEASure:VRMS? DISPlay,DC,CHANnel2")),
-            ch3_vrms_dc_v=_safe_float(self._query(":MEASure:VRMS? DISPlay,DC,CHANnel3")),
+            frequency_hz=_safe_float(self._query_measurement(":MEASure:FREQuency? CHANnel1")),
+            vpp_v=_safe_float(self._query_measurement(":MEASure:VPP? CHANnel1")),
+            ch2_vrms_dc_v=_safe_float(
+                self._query_measurement(":MEASure:VRMS? DISPlay,DC,CHANnel2")
+            ),
+            ch3_vrms_dc_v=_safe_float(
+                self._query_measurement(":MEASure:VRMS? DISPlay,DC,CHANnel3")
+            ),
         )
