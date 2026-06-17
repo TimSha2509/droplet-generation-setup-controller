@@ -8,7 +8,7 @@ vibrometer:
 # Full cross product is fired in order: rpm outermost, then frequency, then amplitude.
 sweep:
   speeds_rpm:     [150, 400]
-  frequencies_hz: [20, 40]
+  frequencies_hz: [6, 10]
   amplitudes_vpp: [1.0, 3.0]
   hold_s: 300                          # per combination
 

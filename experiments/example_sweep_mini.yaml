@@ -1,14 +1,14 @@
-experiment_id: Glycerol_90_Braun
+experiment_id: 260612_Glycerol_90_IE
 nozzle_id: 2.5mm_A
 
 vibrometer:
   factor_um_per_v: 5120
 
 sweep:
-  speeds_rpm:     [1100]
-  frequencies_hz: [5.5, 6.05, 6.35, 6.4, 6.5]
+  speeds_rpm:     [1125, 1175, 1225]
+  frequencies_hz: [5.0, 5.5, 6.0, 6.5, 7.0, 7.5]
   amplitudes_vpp: [8.0]
-  hold_s: 150
+  hold_s: 120
 
 timing:
   stabilization_rpm_change_s: 10

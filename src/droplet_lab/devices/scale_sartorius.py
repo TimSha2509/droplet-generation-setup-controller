@@ -8,12 +8,15 @@ grams.
 from __future__ import annotations
 
 import re
+import time
 from types import TracebackType
 
 import serial
 from loguru import logger
 
-_LINE_RE = re.compile(r"^\s*(?P<sign>[+-])?\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>[a-zA-Z]*)?")
+_LINE_RE = re.compile(
+    r"^\s*(?P<sign>[+-])?\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>[a-zA-Z]+)?\s*$"
+)
 
 
 class SartoriusScale:
@@ -23,10 +26,12 @@ class SartoriusScale:
         port: str,
         baudrate: int = 1200,
         timeout_s: float = 1.0,
+        read_window_s: float = 4.0,
     ) -> None:
         self._port = port
         self._baudrate = baudrate
         self._timeout_s = timeout_s
+        self._read_window_s = read_window_s
         self._ser: serial.Serial | None = None
         self._log = logger.bind(component="scale")
 
@@ -56,14 +61,28 @@ class SartoriusScale:
     def read_weight_g(self) -> float | None:
         if self._ser is None:
             raise RuntimeError("Scale is not open")
-        line = self._ser.readline().decode("ascii", errors="replace")
-        match = _LINE_RE.match(line)
-        if match is None:
-            return None
-        try:
-            value = float(match.group("value"))
-        except ValueError:
-            return None
-        if match.group("sign") == "-":
-            value = -value
-        return value
+        self._ser.reset_input_buffer()
+        self._ser.readline()
+
+        deadline = time.monotonic() + self._read_window_s
+        while time.monotonic() < deadline:
+            raw = self._ser.readline()
+            if not raw:
+                continue
+            weight = _parse_weight_g(raw.decode("ascii", errors="replace"))
+            if weight is not None:
+                return weight
+        return None
+
+
+def _parse_weight_g(line: str) -> float | None:
+    match = _LINE_RE.match(line)
+    if match is None:
+        return None
+    try:
+        value = float(match.group("value"))
+    except ValueError:
+        return None
+    if match.group("sign") == "-":
+        value = -value
+    return value
