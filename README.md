@@ -1,8 +1,9 @@
 # Droplet Lab Controller
 
 Single-process Python controller for a droplet-generation lab setup. One YAML
-file per experiment drives the gear pump, oscilloscope, DSLR camera (via
-DigiCamControl) and (optionally) the lab balance.
+file per experiment drives the gear pump, oscilloscope, DSLR camera (with
+DigiCamControl folder management and either DigiCamControl or Arduino shutter
+triggering) and (optionally) the lab balance.
 
 ## What this is
 
@@ -57,7 +58,7 @@ uv run droplet --version
 
 * Install [NI-VISA runtime](https://www.ni.com/en/support/downloads/drivers/download.ni-visa.html).
 * Install [DigiCamControl](https://digicamcontrol.com/) and enable the HTTP server (default port 5513).
-* Identify which COM port your pump and balance are on:
+* Identify which COM port your pump, balance, and optional Arduino shutter trigger are on:
 
   ```bash
   uv run droplet list-devices
@@ -160,6 +161,21 @@ cat <base_dir>/<run-folder>/experiment.log
 **See where data is going during a run:**
 
 The first line of stdout is `experiment dir: ...`.
+
+**Use Arduino shutter triggering while DigiCamControl handles storage:**
+
+```yaml
+timing:
+  wait_time_camera: 5
+
+devices:
+  camera:
+    digicam_url: "http://localhost:5513"
+    trigger_backend: arduino
+    shutter_port: COM7
+    shutter_baudrate: 9600
+    shutter_pulse_ms: 300
+```
 
 ## Troubleshooting
 

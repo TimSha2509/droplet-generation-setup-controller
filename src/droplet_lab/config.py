@@ -39,6 +39,7 @@ class SweepConfig(_StrictModel):
     frequencies_hz: Annotated[list[PositiveFloat], Field(min_length=1)]
     amplitudes_vpp: Annotated[list[PositiveFloat], Field(min_length=1)]
     hold_s: PositiveFloat
+    random: bool = False
 
     @field_validator("amplitudes_vpp")
     @classmethod
@@ -57,6 +58,7 @@ class TimingConfig(_StrictModel):
     stabilization_amp_change_s: NonNegativeFloat
     image_interval_s: PositiveFloat
     camera_latency_tolerance_s: NonNegativeFloat = 0.0
+    wait_time_camera: NonNegativeFloat = 0.0
 
 
 class LimitsConfig(_StrictModel):
@@ -76,6 +78,17 @@ class OscilloscopeConfig(_StrictModel):
 class CameraConfig(_StrictModel):
     digicam_url: str = "http://localhost:5513"
     request_timeout_s: PositiveFloat = 10.0
+    trigger_backend: Literal["digicam", "arduino"] = "digicam"
+    shutter_port: str | None = None
+    shutter_baudrate: PositiveInt = 9600
+    shutter_pulse_ms: PositiveInt = 300
+    shutter_read_timeout_s: PositiveFloat = 2.0
+
+    @model_validator(mode="after")
+    def _arduino_requires_port(self) -> CameraConfig:
+        if self.trigger_backend == "arduino" and not self.shutter_port:
+            raise ValueError("devices.camera.shutter_port is required for Arduino triggering")
+        return self
 
 
 class FunctionGeneratorConfig(_StrictModel):

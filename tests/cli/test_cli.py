@@ -69,6 +69,36 @@ def test_dry_run_prints_plan(tmp_path: Path) -> None:
     assert "200" in res.output
 
 
+def test_dry_run_uses_randomized_sweep_order(tmp_path: Path) -> None:
+    yml = _write_minimal_yaml(tmp_path)
+    data = yaml.safe_load(yml.read_text())
+    data["sweep"].update(
+        {
+            "speeds_rpm": [200, 800],
+            "frequencies_hz": [20.0, 25.0],
+            "amplitudes_vpp": [3.0, 5.0],
+            "random": True,
+        }
+    )
+    yml.write_text(yaml.safe_dump(data))
+
+    res = runner.invoke(app, ["run", str(yml), "--dry-run", "--no-confirm", "--simulate"])
+
+    assert res.exit_code == 0, res.output
+    assert "random=True" in res.output
+    lines = [line.strip() for line in res.output.splitlines() if line.strip().startswith("combo")]
+    assert [line.split(":")[0] for line in lines] == [
+        "combo 005",
+        "combo 002",
+        "combo 006",
+        "combo 003",
+        "combo 001",
+        "combo 004",
+        "combo 008",
+        "combo 007",
+    ]
+
+
 def test_run_simulate_completes(tmp_path: Path) -> None:
     yml = _write_minimal_yaml(tmp_path)
     res = runner.invoke(app, ["run", str(yml), "--simulate", "--no-confirm", "--no-tui"])

@@ -15,6 +15,7 @@ from droplet_lab.devices.base import (
     Scale,
     ScopeMeasurement,
 )
+from droplet_lab.devices.camera_arduino import DigiCamArduinoCamera
 from droplet_lab.devices.camera_digicam import DigiCamCamera
 from droplet_lab.devices.camera_fake import FakeCamera
 from droplet_lab.devices.function_generator_fake import FakeFunctionGenerator
@@ -62,6 +63,17 @@ def build_oscilloscope(
 def build_camera(cfg: CameraConfig, *, simulate: bool) -> Camera:
     if simulate:
         return FakeCamera()
+    if cfg.trigger_backend == "arduino":
+        if cfg.shutter_port is None:
+            raise ValueError("CameraConfig.shutter_port must be set for Arduino triggering")
+        return DigiCamArduinoCamera(
+            digicam_url=cfg.digicam_url,
+            request_timeout_s=cfg.request_timeout_s,
+            shutter_port=cfg.shutter_port,
+            shutter_baudrate=cfg.shutter_baudrate,
+            shutter_pulse_ms=cfg.shutter_pulse_ms,
+            shutter_read_timeout_s=cfg.shutter_read_timeout_s,
+        )
     return DigiCamCamera(url=cfg.digicam_url, request_timeout_s=cfg.request_timeout_s)
 
 

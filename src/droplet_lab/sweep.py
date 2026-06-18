@@ -1,19 +1,24 @@
 """Cross-product expansion of the experiment sweep.
 
 A sweep is three lists (RPM, frequency, amplitude). ``expand_sweep`` produces
-a flat ordered list of ``SweepCombination`` instances iterating RPM outermost,
-then frequency, then amplitude innermost. Each combination carries a
-``changed`` flag that names the slowest parameter that differs from the
-previous combination — used by the orchestrator to pick the right
-stabilization time.
+the full cross-product with RPM outermost, then frequency, then amplitude
+innermost. When requested, that full cross-product is shuffled with a
+deterministic Fisher-Yates shuffle before execution.
+
+Each combination carries a ``changed`` flag that names the slowest parameter
+that differs from the previous executed combination. The orchestrator uses that
+to pick the right stabilization time.
 """
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from typing import Literal
 
 ChangedKind = Literal["initial", "rpm", "freq", "amp"]
+RANDOM_SHUFFLE_SEED = 0
+RANDOMIZATION_ALGORITHM = "Fisher-Yates shuffle using Python random.Random(seed=0)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,26 +37,14 @@ def expand_sweep(
     frequencies_hz: list[float],
     amplitudes_vpp: list[float],
     hold_s: float,
+    randomize: bool = False,
 ) -> list[SweepCombination]:
     out: list[SweepCombination] = []
-    prev_rpm: int | None = None
-    prev_freq: float | None = None
     idx = 0
     for rpm in speeds_rpm:
         for freq in frequencies_hz:
             for amp in amplitudes_vpp:
                 idx += 1
-                if prev_rpm is None:
-                    changed: ChangedKind = "initial"
-                elif rpm != prev_rpm:
-                    changed = "rpm"
-                elif freq != prev_freq:
-                    changed = "freq"
-                else:
-                    # Innermost loop: amplitude either changed, or the user supplied a
-                    # duplicate amplitude. Either way, treat as an amplitude step (uses the
-                    # shortest stabilization).
-                    changed = "amp"
                 out.append(
                     SweepCombination(
                         combo_index=idx,
@@ -59,9 +52,44 @@ def expand_sweep(
                         frequency_hz=float(freq),
                         amplitude_vpp=float(amp),
                         hold_s=hold_s,
-                        changed=changed,
+                        changed="initial",
                     )
                 )
-                prev_rpm = rpm
-                prev_freq = freq
+    if randomize:
+        _fisher_yates_shuffle(out, seed=RANDOM_SHUFFLE_SEED)
+    return _with_execution_changes(out)
+
+
+def _fisher_yates_shuffle(combos: list[SweepCombination], *, seed: int) -> None:
+    rng = random.Random(seed)
+    for i in range(len(combos) - 1, 0, -1):
+        j = rng.randrange(i + 1)
+        combos[i], combos[j] = combos[j], combos[i]
+
+
+def _with_execution_changes(combos: list[SweepCombination]) -> list[SweepCombination]:
+    out: list[SweepCombination] = []
+    prev_rpm: int | None = None
+    prev_freq: float | None = None
+    for combo in combos:
+        if prev_rpm is None:
+            changed: ChangedKind = "initial"
+        elif combo.set_speed_rpm != prev_rpm:
+            changed = "rpm"
+        elif combo.frequency_hz != prev_freq:
+            changed = "freq"
+        else:
+            changed = "amp"
+        out.append(
+            SweepCombination(
+                combo_index=combo.combo_index,
+                set_speed_rpm=combo.set_speed_rpm,
+                frequency_hz=combo.frequency_hz,
+                amplitude_vpp=combo.amplitude_vpp,
+                hold_s=combo.hold_s,
+                changed=changed,
+            )
+        )
+        prev_rpm = combo.set_speed_rpm
+        prev_freq = combo.frequency_hz
     return out

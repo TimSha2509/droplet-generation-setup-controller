@@ -6,37 +6,70 @@ Each experiment is one YAML file. Run it with:
 uv run droplet run experiments/<your_file>.yaml
 ```
 
-## Field reference
+## Field Reference
 
 | Field | Type | Unit | Description |
 |---|---|---|---|
-| `experiment_id` | string | — | Free-form identifier; appears in output folder name. |
-| `nozzle_id` | string | — | Free-form nozzle identifier. |
-| `actuation.frequency_hz` | float > 0 | Hz | Driving frequency the actuator is set to. |
-| `actuation.voltage_v` | float > 0 | V | Driving voltage. |
-| `actuation.vibrometer_factor_um_per_v` | float > 0 | µm/V | Calibration factor; multiplied by Vpp on CH1 to get peak-to-peak displacement. |
-| `ramp[i].speed_rpm` | int > 0 | rpm | Pump speed for this step. |
-| `ramp[i].hold_s` | float > 0 | s | Total time spent at this speed. Imaging duration = `hold_s - timing.stabilization_s`. |
-| `timing.stabilization_s` | float ≥ 0 | s | Wait time after speed change before imaging starts. |
+| `experiment_id` | string | - | Free-form identifier; appears in the output folder name. |
+| `nozzle_id` | string | - | Free-form nozzle identifier. |
+| `vibrometer.factor_um_per_v` | float > 0 | um/V | Calibration factor; multiplied by Vpp on CH1 to get peak-to-peak displacement. |
+| `sweep.speeds_rpm` | list[int > 0] | rpm | Pump speeds used in the full cross-product. |
+| `sweep.frequencies_hz` | list[float > 0] | Hz | Driving frequencies used in the full cross-product. |
+| `sweep.amplitudes_vpp` | list[float > 0] | Vpp | Driving amplitudes used in the full cross-product. |
+| `sweep.hold_s` | float > 0 | s | Total time spent at each combination. Imaging duration = `hold_s - stabilization_s`. |
+| `sweep.random` | bool | - | Default `false`. If `true`, the full cross-product is executed in deterministic Fisher-Yates shuffled order using Python `random.Random(seed=0)`. Folder names keep the same `combo_NNN_rpm...` structure. |
+| `timing.stabilization_rpm_change_s` | float >= 0 | s | Wait time after a pump speed change. |
+| `timing.stabilization_freq_change_s` | float >= 0 | s | Wait time after a frequency-only change. |
+| `timing.stabilization_amp_change_s` | float >= 0 | s | Wait time after an amplitude-only change. |
 | `timing.image_interval_s` | float > 0 | s | Time between camera triggers. |
-| `timing.camera_latency_tolerance_s` | float ≥ 0 | s | Extra wait after the planned imaging window before declaring the camera done. |
-| `limits.max_speed_rpm` | int > 0 | rpm | Hard cap; ramp validation rejects steps exceeding this. |
-| `devices.pump.port` | string | — | COM port (Windows) or `/dev/tty…` (Linux/macOS). |
+| `timing.camera_latency_tolerance_s` | float >= 0 | s | Extra wait after the planned imaging window before declaring the camera done. |
+| `timing.wait_time_camera` | float >= 0 | s | Extra wait after a successful imaging step before moving to the next combo folder. Use this to let camera buffers clear before DigiCamControl switches folders. Default `0.0`. |
+| `limits.max_speed_rpm` | int > 0 | rpm | Hard cap; sweep validation rejects speeds above this. |
+| `devices.pump.port` | string | - | COM port on Windows or `/dev/tty...` on Linux/macOS. |
 | `devices.pump.baudrate` | int > 0 | baud | Default `9600`. |
-| `devices.oscilloscope.visa_resource` | string | — | VISA resource string from `droplet list-devices`. |
+| `devices.oscilloscope.visa_resource` | string | - | VISA resource string from `droplet list-devices`. |
 | `devices.oscilloscope.timeout_ms` | int > 0 | ms | SCPI query timeout. |
-| `devices.camera.digicam_url` | string | — | DigiCamControl HTTP server URL (default `http://localhost:5513`). |
+| `devices.camera.digicam_url` | string | - | DigiCamControl HTTP server URL. Default `http://localhost:5513`. |
 | `devices.camera.request_timeout_s` | float > 0 | s | HTTP request timeout. |
-| `devices.scale.enabled` | bool | — | If `false`, scale is not opened and `scale.csv` is not written. |
-| `devices.scale.port` | string\|null | — | Required when `enabled: true`. |
-| `devices.scale.baudrate` | int > 0 | baud | Default `9600`. |
-| `output.base_dir` | path | — | Parent directory for run outputs. The actual run folder is `<UTC-timestamp>__<experiment_id>` inside it. |
+| `devices.camera.trigger_backend` | `digicam` or `arduino` | - | Trigger source. `digicam` uses DigiCamControl for folder setting and shutter trigger. `arduino` uses DigiCamControl for folder setting and an Arduino serial shutter trigger. Default `digicam`. |
+| `devices.camera.shutter_port` | string or null | - | Arduino serial port. Required when `trigger_backend: arduino`. |
+| `devices.camera.shutter_baudrate` | int > 0 | baud | Arduino serial baudrate. Default `9600`. |
+| `devices.camera.shutter_pulse_ms` | int > 0 | ms | Shutter pulse sent as `shoot <ms>`. Default `300`. |
+| `devices.camera.shutter_read_timeout_s` | float > 0 | s | Timeout while waiting for the Arduino `OK shoot...` response. Default `2.0`. |
+| `devices.function_generator.port` | string | - | Function generator serial port. |
+| `devices.function_generator.channel` | `1` or `2` | - | Function generator output channel. Default `1`. |
+| `devices.function_generator.baudrate` | int > 0 | baud | Default `115200`. |
+| `devices.scale.enabled` | bool | - | If `false`, scale is not opened and `scale.csv` is not written. |
+| `devices.scale.port` | string or null | - | Scale serial port. Required by real hardware when `enabled: true`. |
+| `devices.scale.baudrate` | int > 0 | baud | Default `1200`. |
+| `devices.scale.interval_s` | float > 0 | s | Time between scale reads. |
+| `output.base_dir` | path | - | Parent directory for run outputs. The actual run folder is `<UTC-timestamp>__<experiment_id>` inside it. |
 
 ## Tips
 
 * Run `uv run droplet validate <yaml>` after editing to catch typos and missing fields.
-* Use `--simulate` for a dry-run with fake hardware:
+* Use `--simulate` for a dry run with fake hardware:
   ```bash
   uv run droplet run experiments/example_hpmc.yaml --simulate
   ```
-* The shipped `example_hpmc.yaml` is a working reference — copy and edit it for your runs.
+* Use `--dry-run` to preview the exact sweep order before touching hardware.
+* The shipped `example_hpmc.yaml` is a working reference. Copy and edit it for your runs.
+
+## Arduino shutter trigger
+
+DigiCamControl still handles image download and per-combo folder routing. To trigger
+the camera through the Arduino remote-shutter sketch, set the camera trigger backend
+and choose the Arduino COM port:
+
+```yaml
+timing:
+  wait_time_camera: 5
+
+devices:
+  camera:
+    digicam_url: "http://localhost:5513"
+    trigger_backend: arduino
+    shutter_port: COM7
+    shutter_baudrate: 9600
+    shutter_pulse_ms: 300
+```

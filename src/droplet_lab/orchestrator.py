@@ -159,6 +159,7 @@ class Orchestrator:
                     frequencies_hz=list(self._cfg.sweep.frequencies_hz),
                     amplitudes_vpp=list(self._cfg.sweep.amplitudes_vpp),
                     hold_s=self._cfg.sweep.hold_s,
+                    randomize=self._cfg.sweep.random,
                 )
                 first = combos[0]
                 self._state.update(
@@ -203,7 +204,9 @@ class Orchestrator:
                         log_interval_s=self._cfg.devices.scale.interval_s,
                         experiment_dir=exp,
                     )
-                    scale_thread = threading.Thread(target=scale_worker.run, name="scale", daemon=True)
+                    scale_thread = threading.Thread(
+                        target=scale_worker.run, name="scale", daemon=True
+                    )
                     threads.append(scale_thread)
                     scale_thread.start()
 
@@ -253,13 +256,13 @@ class Orchestrator:
         camera: Camera,
         fg: FunctionGenerator,
     ) -> tuple[ExperimentStatus, str | None]:
-        for combo in combos:
+        for execution_index, combo in enumerate(combos):
             if self._stop.is_set() or self._error.is_set():
                 return self._final_status_after_break(), None
 
-            step_folder = first_folder if combo.combo_index == 1 else exp.create_combo_folder(combo)
+            step_folder = first_folder if execution_index == 0 else exp.create_combo_folder(combo)
 
-            if combo.combo_index > 1:
+            if execution_index > 0:
                 self._state.update(
                     combo_index=combo.combo_index,
                     set_speed_rpm=combo.set_speed_rpm,
@@ -313,17 +316,28 @@ class Orchestrator:
                 stop_event=self._stop,
             )
             step_meta["captures"] = result.captures
-            step_meta["end_time_utc"] = utc_now_iso()
 
             match result.status:
                 case CameraResultStatus.COMPLETED:
+                    if self._wait_after_camera_if_needed(
+                        execution_index=execution_index,
+                        n_combos=len(combos),
+                    ):
+                        step_meta["status"] = StepStatus.ABORTED.value
+                        step_meta["camera_status"] = CameraStatus.ABORTED.value
+                        step_meta["end_time_utc"] = utc_now_iso()
+                        self._write_step_json(step_folder, step_meta)
+                        self._append_runs_row(exp, combo, step_folder, step_meta, "aborted", None)
+                        return self._final_status_after_break(), None
                     step_meta["status"] = StepStatus.COMPLETED.value
                     step_meta["camera_status"] = CameraStatus.COMPLETED.value
+                    step_meta["end_time_utc"] = utc_now_iso()
                     self._write_step_json(step_folder, step_meta)
                     self._append_runs_row(exp, combo, step_folder, step_meta, "completed", None)
                 case CameraResultStatus.NO_IMAGING:
                     step_meta["status"] = StepStatus.COMPLETED_NO_IMAGING.value
                     step_meta["camera_status"] = CameraStatus.NOT_STARTED.value
+                    step_meta["end_time_utc"] = utc_now_iso()
                     self._write_step_json(step_folder, step_meta)
                     self._append_runs_row(
                         exp, combo, step_folder, step_meta, "completed_no_imaging", None
@@ -331,6 +345,7 @@ class Orchestrator:
                 case CameraResultStatus.ABORTED:
                     step_meta["status"] = StepStatus.ABORTED.value
                     step_meta["camera_status"] = CameraStatus.ABORTED.value
+                    step_meta["end_time_utc"] = utc_now_iso()
                     self._write_step_json(step_folder, step_meta)
                     self._append_runs_row(exp, combo, step_folder, step_meta, "aborted", None)
                     return self._final_status_after_break(), None
@@ -338,6 +353,7 @@ class Orchestrator:
                     step_meta["status"] = StepStatus.CAMERA_FAILED.value
                     step_meta["camera_status"] = CameraStatus.FAILED.value
                     step_meta["camera_error"] = result.error
+                    step_meta["end_time_utc"] = utc_now_iso()
                     self._write_step_json(step_folder, step_meta)
                     self._append_runs_row(
                         exp, combo, step_folder, step_meta, "camera_failed", result.error
@@ -354,6 +370,13 @@ class Orchestrator:
                 return True
             time.sleep(0.05)
         return False
+
+    def _wait_after_camera_if_needed(self, *, execution_index: int, n_combos: int) -> bool:
+        wait_s = self._cfg.timing.wait_time_camera
+        if wait_s <= 0 or execution_index >= n_combos - 1:
+            return False
+        self._log.info("waiting {}s for camera buffer before next combo", wait_s)
+        return self._wait(wait_s)
 
     def _final_status_after_break(self) -> ExperimentStatus:
         if self._error.is_set():
@@ -382,6 +405,7 @@ class Orchestrator:
             "stabilization_s": self._stabilization_for(combo.changed),
             "image_interval_s": self._cfg.timing.image_interval_s,
             "camera_latency_tolerance_s": self._cfg.timing.camera_latency_tolerance_s,
+            "wait_time_camera_s": self._cfg.timing.wait_time_camera,
             "start_time_utc": utc_now_iso(),
             "status": StepStatus.PLANNED.value,
             "camera_status": CameraStatus.NOT_STARTED.value,

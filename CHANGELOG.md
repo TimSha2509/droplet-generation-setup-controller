@@ -1,43 +1,29 @@
 # Changelog
 
-## Unreleased local changes - 2026-06-17
-
-Compared with `origin/main` on GitHub, the local `HEAD` commit is not ahead or
-behind. The changes below are local working-tree updates that are not currently
-published on GitHub.
-
-### Changed
-
-- Updated `experiments/example_sweep_mini.yaml` for the
-  `260612_Glycerol_90_IE` experiment:
-  - Expanded sweep speeds from `1100` rpm to `1125`, `1175`, and `1225` rpm.
-  - Expanded sweep frequencies to `5.0`, `5.5`, `6.0`, `6.5`, `7.0`, and
-    `7.5` Hz.
-  - Reduced per-step hold time from `150` seconds to `120` seconds.
-- Adjusted `experiments/example_hpmc.yaml` sweep frequencies from `20` and
-  `40` Hz to `6` and `10` Hz.
-
-### Improved
-
-- Made Sartorius scale readings more robust by flushing stale input, discarding
-  the first line after a flush, and reading until a valid weight appears within
-  a configurable read window.
-- Tightened Sartorius weight parsing so only complete weight lines are accepted,
-  preventing embedded numbers in status or garbage text from being parsed as
-  valid weights.
-- Added support for parsing signed scale readings with internal spacing.
-
-### Tested
-
-- Added Sartorius scale tests for:
-  - Discarding stale first readings after input-buffer reset.
-  - Skipping empty or invalid serial lines until a valid weight appears.
-  - Rejecting lines with embedded numbers.
-  - Parsing negative signed weight values.
-  - Returning `None` when no valid reading arrives before the read window ends.
+## Unreleased - 2026-06-18
 
 ### Added
 
-- Added untracked `DATA_TEST/` experiment output samples, including test
-  experiment metadata, pump and oscilloscope CSVs, step JSON files, and sample
-  image captures.
+- Added deterministic sweep randomization with `sweep.random`, preserving stable
+  combo folder names while executing the full cross-product in a seeded
+  Fisher-Yates order.
+- Added Arduino shutter triggering as an alternate camera backend while keeping
+  DigiCamControl responsible for output-folder routing.
+- Added camera timing support with `timing.wait_time_camera` so runs can pause
+  between completed imaging steps before switching to the next combo.
+- Added tests for randomized sweep order, recomputed stabilization change flags,
+  Arduino trigger behavior, camera wait handling, and config validation.
+
+### Changed
+
+- Updated CLI dry-run output and generated config templates to show the sweep
+  randomization setting.
+- Updated orchestration so execution order is tracked independently from
+  stable combo indices.
+- Refreshed experiment examples and documentation for the current sweep schema,
+  Arduino shutter configuration, and camera wait timing.
+
+### Notes
+
+- Local generated outputs such as `DATA_TEST/`, `Thumbs.db`, and exploratory
+  plots are not part of this changelog entry.

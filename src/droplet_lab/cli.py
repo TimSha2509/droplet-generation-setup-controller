@@ -141,7 +141,8 @@ def run(
         f"Sweep: rpm={list(cfg.sweep.speeds_rpm)}  "
         f"freq={list(cfg.sweep.frequencies_hz)} Hz  "
         f"amp={list(cfg.sweep.amplitudes_vpp)} Vpp  "
-        f"hold={cfg.sweep.hold_s} s  ({n_combos} combinations)"
+        f"hold={cfg.sweep.hold_s} s  random={cfg.sweep.random}  "
+        f"({n_combos} combinations)"
     )
     if fakes:
         typer.echo(f"Simulated devices: {sorted(fakes)}")
@@ -152,6 +153,7 @@ def run(
             frequencies_hz=list(cfg.sweep.frequencies_hz),
             amplitudes_vpp=list(cfg.sweep.amplitudes_vpp),
             hold_s=cfg.sweep.hold_s,
+            randomize=cfg.sweep.random,
         ):
             typer.echo(
                 f"  combo {c.combo_index:03d}: rpm={c.set_speed_rpm}  "
@@ -205,6 +207,7 @@ def new(yaml_path: Path) -> None:
             frequencies_hz=[20.0, 25.0, 30.0],
             amplitudes_vpp=[3.0, 5.0, 9.0],
             hold_s=30.0,
+            random=False,
         ),
         timing=TimingConfig(
             stabilization_rpm_change_s=10.0,
