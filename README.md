@@ -177,6 +177,19 @@ devices:
     shutter_pulse_ms: 300
 ```
 
+**Calibrate and run by target displacement:**
+
+```bash
+uv run droplet calibrate-displacement experiments/example_displacement.yaml
+uv run droplet run experiments/example_displacement.yaml --validate-displacement
+```
+
+Displacement mode uses `sweep.displacements_um` instead of `sweep.amplitudes_vpp`.
+Calibration reads the Excel max-voltage table, assumes amplifier gain `2.0`, and
+prompts you to confirm that gain before calibration or validation. The Excel
+`max. Voltage [V]` values are amplifier-side voltages, so the function generator
+limit is half that value and never above the global `9.5 Vpp` cap.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

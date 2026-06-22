@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased - 2026-06-19
+
+### Added
+
+- Added displacement-mode sweeps with `sweep.displacements_um`, calibration-model
+  loading, and resolved function-generator Vpp values.
+- Added `droplet calibrate-displacement` to build frequency/voltage/displacement
+  calibration JSON and CSV artifacts from oscilloscope readings.
+- Added frequency-dependent max-voltage safety limits from Excel workbooks with
+  amplifier gain confirmation before calibration and validation.
+- Added optional pre-run displacement validation with terminal error reporting
+  and warnings above the configured percent threshold.
+
+### Changed
+
+- Extended run metadata and CSV rows with target displacement alongside resolved
+  Vpp values when displacement mode is active.
+- Added `openpyxl` for reading `.xlsx` calibration limit workbooks.
+
 ## Unreleased - 2026-06-18
 
 ### Added

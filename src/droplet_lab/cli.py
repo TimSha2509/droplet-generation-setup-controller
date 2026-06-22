@@ -9,6 +9,7 @@ Subcommands:
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Annotated
 
@@ -36,6 +37,12 @@ from droplet_lab.devices import (
     build_oscilloscope,
     build_pump,
     build_scale,
+)
+from droplet_lab.displacement import (
+    ValidationResult,
+    resolve_sweep_displacements,
+    run_displacement_calibration,
+    validate_displacement_targets,
 )
 from droplet_lab.orchestrator import DeviceBundle, Orchestrator
 from droplet_lab.state import ExperimentState, ExperimentStatus
@@ -66,7 +73,39 @@ def main(
 
 
 def _combo_count(cfg: ExperimentConfig) -> int:
-    return len(cfg.sweep.speeds_rpm) * len(cfg.sweep.frequencies_hz) * len(cfg.sweep.amplitudes_vpp)
+    actuation_count = len(
+        cfg.sweep.amplitudes_vpp
+        if cfg.sweep.amplitudes_vpp is not None
+        else cfg.sweep.displacements_um or []
+    )
+    return len(cfg.sweep.speeds_rpm) * len(cfg.sweep.frequencies_hz) * actuation_count
+
+
+def _confirm_amplifier_gain(cfg: ExperimentConfig, *, no_confirm: bool) -> None:
+    if no_confirm:
+        return
+    typer.confirm(
+        f"Confirm the amplifier is set to gain factor {cfg.displacement.amplifier_gain:g}.",
+        abort=True,
+    )
+
+
+def _print_validation_results(results: list[ValidationResult]) -> None:
+    typer.echo("Displacement validation:")
+    typer.echo("  freq_Hz  target_um  measured_um  abs_error_um  error_%  Vpp  status")
+    for result in results:
+        measured = _fmt_optional(result.measured_displacement_um)
+        abs_error = _fmt_optional(result.abs_error_um)
+        percent = _fmt_optional(result.percent_error)
+        status = "WARNING" if result.warning else "OK"
+        typer.echo(
+            f"  {result.frequency_hz:g}  {result.target_displacement_um:g}  "
+            f"{measured}  {abs_error}  {percent}  {result.amplitude_vpp:g}  {status}"
+        )
+
+
+def _fmt_optional(value: float | None) -> str:
+    return "" if value is None else f"{value:.4g}"
 
 
 @app.command()
@@ -117,6 +156,12 @@ def run(
         bool,
         typer.Option("--dry-run", help="Print the plan and exit"),
     ] = False,
+    validate_displacement: Annotated[
+        bool,
+        typer.Option(
+            "--validate-displacement", help="Validate displacement targets before running"
+        ),
+    ] = False,
     no_confirm: Annotated[
         bool,
         typer.Option("--no-confirm", help="Skip 'press Enter to start'"),
@@ -136,11 +181,17 @@ def run(
         fakes = set(_VALID_SIMULATE_ONLY)
 
     n_combos = _combo_count(cfg)
+    resolved_amplitudes = resolve_sweep_displacements(cfg)
+    actuation_text = (
+        f"amp={list(cfg.sweep.amplitudes_vpp)} Vpp"
+        if cfg.sweep.amplitudes_vpp is not None
+        else f"disp={list(cfg.sweep.displacements_um or [])} um"
+    )
     typer.echo(f"Experiment: {cfg.experiment_id}  nozzle={cfg.nozzle_id}")
     typer.echo(
         f"Sweep: rpm={list(cfg.sweep.speeds_rpm)}  "
         f"freq={list(cfg.sweep.frequencies_hz)} Hz  "
-        f"amp={list(cfg.sweep.amplitudes_vpp)} Vpp  "
+        f"{actuation_text}  "
         f"hold={cfg.sweep.hold_s} s  random={cfg.sweep.random}  "
         f"({n_combos} combinations)"
     )
@@ -151,17 +202,58 @@ def run(
         for c in expand_sweep(
             speeds_rpm=list(cfg.sweep.speeds_rpm),
             frequencies_hz=list(cfg.sweep.frequencies_hz),
-            amplitudes_vpp=list(cfg.sweep.amplitudes_vpp),
+            amplitudes_vpp=(
+                list(cfg.sweep.amplitudes_vpp) if cfg.sweep.amplitudes_vpp is not None else None
+            ),
+            displacements_um=(
+                list(cfg.sweep.displacements_um) if cfg.sweep.displacements_um is not None else None
+            ),
+            resolved_amplitudes_vpp=resolved_amplitudes,
             hold_s=cfg.sweep.hold_s,
             randomize=cfg.sweep.random,
         ):
+            disp_text = (
+                ""
+                if c.target_displacement_um is None
+                else f"  target={c.target_displacement_um:g}um"
+            )
             typer.echo(
                 f"  combo {c.combo_index:03d}: rpm={c.set_speed_rpm}  "
                 f"freq={c.frequency_hz}Hz  amp={c.amplitude_vpp}Vpp  "
-                f"(changed={c.changed})"
+                f"{disp_text}  (changed={c.changed})"
             )
         typer.echo("--dry-run: not executing")
         return
+
+    if cfg.sweep.displacements_um is not None and (
+        cfg.displacement.validation_enabled or validate_displacement
+    ):
+        _confirm_amplifier_gain(cfg, no_confirm=no_confirm)
+        validation_state = ExperimentState()
+        with ExitStack() as stack:
+            validation_scope = stack.enter_context(
+                build_oscilloscope(
+                    cfg.devices.oscilloscope,
+                    state=validation_state,
+                    simulate="scope" in fakes,
+                )
+            )
+            validation_fg = stack.enter_context(
+                build_function_generator(
+                    cfg.devices.function_generator,
+                    simulate="function_generator" in fakes,
+                )
+            )
+            results = validate_displacement_targets(
+                cfg=cfg,
+                fg=validation_fg,
+                scope=validation_scope,
+                resolved=resolved_amplitudes or {},
+                state=validation_state,
+            )
+        _print_validation_results(results)
+        if any(result.warning for result in results) and not no_confirm:
+            typer.confirm("Validation warnings exceeded the threshold. Continue?", abort=True)
 
     if not no_confirm:
         typer.confirm("Start experiment now?", abort=True)
@@ -192,6 +284,65 @@ def run(
         typer.echo(f"reason: {result.failure_reason}")
     if result.status is not ExperimentStatus.COMPLETED:
         raise typer.Exit(code=1)
+
+
+@app.command("calibrate-displacement")
+def calibrate_displacement(
+    yaml_path: Path,
+    simulate: Annotated[
+        bool,
+        typer.Option("--simulate", help="Use fake oscilloscope and function generator"),
+    ] = False,
+    simulate_only: Annotated[
+        str | None,
+        typer.Option(
+            "--simulate-only",
+            help="Comma-separated list of devices to mock; calibration uses scope,function_generator",
+        ),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option(help="Override output.base_dir"),
+    ] = None,
+    no_confirm: Annotated[
+        bool,
+        typer.Option("--no-confirm", help="Skip amplifier-gain confirmation"),
+    ] = False,
+) -> None:
+    """Create a displacement calibration model from oscilloscope measurements."""
+    cfg = load_experiment(yaml_path)
+    if output_dir is not None:
+        cfg = cfg.model_copy(update={"output": OutputConfig(base_dir=output_dir)})
+
+    fakes = _parse_simulate_only(simulate_only)
+    if simulate:
+        fakes = {"scope", "function_generator"}
+
+    _confirm_amplifier_gain(cfg, no_confirm=no_confirm)
+    state = ExperimentState()
+    with ExitStack() as stack:
+        scope = stack.enter_context(
+            build_oscilloscope(cfg.devices.oscilloscope, state=state, simulate="scope" in fakes)
+        )
+        fg = stack.enter_context(
+            build_function_generator(
+                cfg.devices.function_generator,
+                simulate="function_generator" in fakes,
+            )
+        )
+        model, model_path, csv_path = run_displacement_calibration(
+            cfg=cfg,
+            fg=fg,
+            scope=scope,
+            state=state,
+        )
+
+    typer.echo(
+        f"calibrated {len(model.curves)} frequencies with "
+        f"{cfg.displacement.voltage_steps} voltage steps"
+    )
+    typer.echo(f"model: {model_path}")
+    typer.echo(f"csv: {csv_path}")
 
 
 @app.command()

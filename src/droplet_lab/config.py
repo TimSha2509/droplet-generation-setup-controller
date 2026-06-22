@@ -37,19 +37,32 @@ class VibrometerConfig(_StrictModel):
 class SweepConfig(_StrictModel):
     speeds_rpm: Annotated[list[PositiveInt], Field(min_length=1)]
     frequencies_hz: Annotated[list[PositiveFloat], Field(min_length=1)]
-    amplitudes_vpp: Annotated[list[PositiveFloat], Field(min_length=1)]
+    amplitudes_vpp: Annotated[list[PositiveFloat], Field(min_length=1)] | None = None
+    displacements_um: Annotated[list[PositiveFloat], Field(min_length=1)] | None = None
     hold_s: PositiveFloat
     random: bool = False
 
     @field_validator("amplitudes_vpp")
     @classmethod
-    def _amplitudes_within_hardware_limit(cls, value: list[float]) -> list[float]:
+    def _amplitudes_within_hardware_limit(cls, value: list[float] | None) -> list[float] | None:
+        if value is None:
+            return value
         for amp in value:
             if amp > MAX_AMPLITUDE_VPP:
                 raise ValueError(
                     f"amplitude {amp} Vpp exceeds hardware limit {MAX_AMPLITUDE_VPP} Vpp"
                 )
         return value
+
+    @model_validator(mode="after")
+    def _exactly_one_actuation_axis(self) -> SweepConfig:
+        has_amplitudes = self.amplitudes_vpp is not None
+        has_displacements = self.displacements_um is not None
+        if has_amplitudes == has_displacements:
+            raise ValueError(
+                "exactly one of sweep.amplitudes_vpp or sweep.displacements_um is required"
+            )
+        return self
 
 
 class TimingConfig(_StrictModel):
@@ -104,6 +117,33 @@ class ScaleConfig(_StrictModel):
     interval_s: PositiveFloat = 5.0
 
 
+class DisplacementConfig(_StrictModel):
+    model_path: Path | None = None
+    max_voltage_table_path: Path | None = None
+    amplifier_gain: PositiveFloat = 2.0
+    calibration_start_hz: PositiveFloat = 10.0
+    calibration_stop_hz: PositiveFloat = 120.0
+    calibration_step_hz: PositiveFloat = 10.0
+    voltage_steps: Annotated[int, Field(ge=2)] = 5
+    measurement_s: PositiveFloat = 10.0
+    scope_interval_s: PositiveFloat = 0.5
+    validation_enabled: bool = False
+    validation_threshold_percent: PositiveFloat = 10.0
+
+    @field_validator("model_path", "max_voltage_table_path", mode="after")
+    @classmethod
+    def _resolve_optional_path(cls, value: Path | None) -> Path | None:
+        if value is None:
+            return value
+        return value.expanduser().resolve()
+
+    @model_validator(mode="after")
+    def _calibration_range_valid(self) -> DisplacementConfig:
+        if self.calibration_stop_hz < self.calibration_start_hz:
+            raise ValueError("displacement.calibration_stop_hz must be >= calibration_start_hz")
+        return self
+
+
 class DevicesConfig(_StrictModel):
     pump: PumpConfig
     oscilloscope: OscilloscopeConfig
@@ -128,6 +168,7 @@ class ExperimentConfig(_StrictModel):
     sweep: SweepConfig
     timing: TimingConfig
     limits: LimitsConfig = Field(default_factory=LimitsConfig)
+    displacement: DisplacementConfig = Field(default_factory=DisplacementConfig)
     devices: DevicesConfig
     output: OutputConfig
 
@@ -139,6 +180,14 @@ class ExperimentConfig(_StrictModel):
                 raise ValueError(
                     f"sweep.speeds_rpm[{i}]={rpm} exceeds limits.max_speed_rpm={max_rpm}"
                 )
+        return self
+
+    @model_validator(mode="after")
+    def _displacement_mode_requires_model_path(self) -> ExperimentConfig:
+        if self.sweep.displacements_um is not None and self.displacement.model_path is None:
+            raise ValueError(
+                "displacement.model_path is required when using sweep.displacements_um"
+            )
         return self
 
     @model_validator(mode="after")

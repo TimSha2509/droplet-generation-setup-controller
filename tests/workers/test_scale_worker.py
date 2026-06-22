@@ -40,6 +40,7 @@ def test_scale_worker_writes_sweep_rows_with_full_combo_tags(tmp_path: Path) -> 
         "set_frequency_hz",
         "set_amplitude_vpp",
         "weight_g",
+        "target_displacement_um",
     ]
     for line in lines[1:]:
         cols = line.split(";")

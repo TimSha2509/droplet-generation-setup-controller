@@ -10,6 +10,12 @@ from droplet_lab.devices.function_generator_fake import FakeFunctionGenerator
 from droplet_lab.devices.oscilloscope_fake import FakeOscilloscope
 from droplet_lab.devices.pump_fake import FakePump
 from droplet_lab.devices.scale_fake import FakeScale
+from droplet_lab.displacement import (
+    CalibrationCurve,
+    CalibrationMeasurement,
+    CalibrationModel,
+    save_calibration_model,
+)
 from droplet_lab.orchestrator import DeviceBundle, Orchestrator, OrchestratorResult
 from droplet_lab.state import ExperimentState, ExperimentStatus, StepStatus
 from droplet_lab.storage import combo_folder_name
@@ -211,8 +217,9 @@ def test_stop_during_wait_time_camera_aborts_current_combo(
     assert len(rows) == 1
     assert ";aborted;" in rows[0]
     step_meta = json.loads(
-        (result.experiment_dir.root / "steps" / "combo_001_rpm0200_f20Hz_amp3V" / "step.json")
-        .read_text()
+        (
+            result.experiment_dir.root / "steps" / "combo_001_rpm0200_f20Hz_amp3V" / "step.json"
+        ).read_text()
     )
     assert step_meta["status"] == StepStatus.ABORTED.value
 
@@ -383,6 +390,61 @@ def test_randomized_sweep_executes_shuffled_order_with_same_folder_names(
     ]
 
 
+def test_displacement_sweep_resolves_voltage_and_records_target(
+    minimal_config: ExperimentConfig,
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "model.json"
+    save_calibration_model(
+        CalibrationModel(
+            version=1,
+            created_at_utc="2026-06-19T00:00:00Z",
+            vibrometer_factor_um_per_v=minimal_config.vibrometer.factor_um_per_v,
+            amplifier_gain=2.0,
+            curves=[
+                CalibrationCurve(
+                    frequency_hz=20.0,
+                    safe_max_amplitude_vpp=5.0,
+                    measurements=[
+                        CalibrationMeasurement(1.0, 1.0, 1000.0, [1000.0]),
+                        CalibrationMeasurement(3.0, 3.0, 3000.0, [3000.0]),
+                    ],
+                )
+            ],
+        ),
+        model_path,
+    )
+    cfg = minimal_config.model_copy(
+        update={
+            "sweep": minimal_config.sweep.model_copy(
+                update={
+                    "amplitudes_vpp": None,
+                    "displacements_um": [2000.0],
+                    "hold_s": 0.1,
+                }
+            ),
+            "displacement": minimal_config.displacement.model_copy(
+                update={"model_path": model_path}
+            ),
+        }
+    )
+    state = ExperimentState()
+    fake_fg = FakeFunctionGenerator()
+    devices = _build_devices(state)
+    devices["function_generator"] = fake_fg
+
+    result = Orchestrator(config=cfg, devices=devices, state=state).run()
+
+    assert result.status is ExperimentStatus.COMPLETED, result.failure_reason
+    assert ("set_amplitude_vpp", 2.0) in fake_fg.calls
+    step = next((result.experiment_dir.root / "steps").iterdir())
+    meta = json.loads((step / "step.json").read_text())
+    assert meta["target_displacement_um"] == 2000.0
+    assert meta["set_amplitude_vpp"] == 2.0
+    runs_row = (result.experiment_dir.root / "runs.csv").read_text().splitlines()[1]
+    assert runs_row.endswith(";2000.0")
+
+
 def test_combo_folder_exists_before_state_advances(
     minimal_config: ExperimentConfig, tmp_path: Path
 ) -> None:
@@ -394,6 +456,7 @@ def test_combo_folder_exists_before_state_advances(
             set_speed_rpm: int,
             set_frequency_hz: float,
             set_amplitude_vpp: float,
+            target_displacement_um: float | None = None,
         ) -> None:
             if combo_index > 1:
                 expected = combo_folder_name(
@@ -405,6 +468,7 @@ def test_combo_folder_exists_before_state_advances(
                 set_speed_rpm=set_speed_rpm,
                 set_frequency_hz=set_frequency_hz,
                 set_amplitude_vpp=set_amplitude_vpp,
+                target_displacement_um=target_displacement_um,
             )
 
     cfg = minimal_config.model_copy(

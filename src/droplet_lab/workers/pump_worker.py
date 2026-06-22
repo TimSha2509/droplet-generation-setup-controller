@@ -88,6 +88,7 @@ class PumpWorker:
                                 set_amplitude_vpp=snap.set_amplitude_vpp,
                                 actual_speed_rpm=self._pump.get_actual_speed_rpm(),
                                 temperature_c=self._pump.get_temperature_c(),
+                                target_displacement_um=snap.target_displacement_um,
                             )
                         )
                     next_log = now + self._log_interval_s

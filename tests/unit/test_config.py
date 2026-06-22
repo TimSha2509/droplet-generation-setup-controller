@@ -9,6 +9,7 @@ from droplet_lab.config import (
     MAX_AMPLITUDE_VPP,
     CameraConfig,
     DevicesConfig,
+    DisplacementConfig,
     ExperimentConfig,
     FunctionGeneratorConfig,
     OscilloscopeConfig,
@@ -57,7 +58,11 @@ def test_minimal_config_validates(tmp_path: Path) -> None:
     assert cfg.experiment_id == "TEST_01"
     assert cfg.vibrometer.factor_um_per_v == 5280
     assert cfg.sweep.speeds_rpm == [200, 250]
+    assert cfg.sweep.amplitudes_vpp == [3.0, 5.0]
+    assert cfg.sweep.displacements_um is None
     assert cfg.sweep.random is False
+    assert cfg.displacement.amplifier_gain == 2.0
+    assert cfg.displacement.validation_threshold_percent == 10.0
     assert cfg.timing.wait_time_camera == 0.0
     assert cfg.devices.function_generator.channel == 1
     assert cfg.devices.scale.enabled is False
@@ -94,6 +99,47 @@ def test_empty_amplitudes_rejected(tmp_path: Path) -> None:
     data["sweep"]["amplitudes_vpp"] = []
     with pytest.raises(ValidationError):
         ExperimentConfig.model_validate(data)
+
+
+def test_displacement_sweep_requires_model_path(tmp_path: Path) -> None:
+    data = _minimal_dict(tmp_path)
+    data["sweep"].pop("amplitudes_vpp")
+    data["sweep"]["displacements_um"] = [1000.0]
+    with pytest.raises(ValidationError) as exc:
+        ExperimentConfig.model_validate(data)
+    assert "model_path" in str(exc.value)
+
+
+def test_displacement_sweep_validates_with_model_path(tmp_path: Path) -> None:
+    data = _minimal_dict(tmp_path)
+    data["sweep"].pop("amplitudes_vpp")
+    data["sweep"]["displacements_um"] = [1000.0, 1500.0]
+    data["displacement"] = {"model_path": str(tmp_path / "model.json")}
+
+    cfg = ExperimentConfig.model_validate(data)
+
+    assert cfg.sweep.amplitudes_vpp is None
+    assert cfg.sweep.displacements_um == [1000.0, 1500.0]
+    assert cfg.displacement.model_path == (tmp_path / "model.json").resolve()
+
+
+def test_sweep_rejects_both_amplitudes_and_displacements(tmp_path: Path) -> None:
+    data = _minimal_dict(tmp_path)
+    data["sweep"]["displacements_um"] = [1000.0]
+    data["displacement"] = {"model_path": str(tmp_path / "model.json")}
+    with pytest.raises(ValidationError) as exc:
+        ExperimentConfig.model_validate(data)
+    assert "exactly one" in str(exc.value)
+
+
+def test_displacement_config_defaults() -> None:
+    cfg = DisplacementConfig()
+    assert cfg.amplifier_gain == 2.0
+    assert cfg.calibration_start_hz == 10.0
+    assert cfg.calibration_stop_hz == 120.0
+    assert cfg.calibration_step_hz == 10.0
+    assert cfg.measurement_s == 10.0
+    assert cfg.validation_threshold_percent == 10.0
 
 
 def test_speed_above_limit_rejected(tmp_path: Path) -> None:

@@ -38,16 +38,24 @@ def test_experiment_state_initial_values() -> None:
     assert state.set_speed_rpm is None
     assert state.set_frequency_hz is None
     assert state.set_amplitude_vpp is None
+    assert state.target_displacement_um is None
 
 
 def test_experiment_state_update_round_trips_all_fields() -> None:
     state = ExperimentState()
-    state.update(combo_index=7, set_speed_rpm=800, set_frequency_hz=25.0, set_amplitude_vpp=5.0)
+    state.update(
+        combo_index=7,
+        set_speed_rpm=800,
+        set_frequency_hz=25.0,
+        set_amplitude_vpp=5.0,
+        target_displacement_um=1200.0,
+    )
     snap = state.snapshot()
     assert snap.combo_index == 7
     assert snap.set_speed_rpm == 800
     assert snap.set_frequency_hz == 25.0
     assert snap.set_amplitude_vpp == 5.0
+    assert snap.target_displacement_um == 1200.0
 
 
 def test_experiment_state_update_is_thread_safe() -> None:

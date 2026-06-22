@@ -32,6 +32,7 @@ from droplet_lab.devices.base import (
     Pump,
     Scale,
 )
+from droplet_lab.displacement import resolve_sweep_displacements
 from droplet_lab.logging_setup import setup_logging
 from droplet_lab.state import (
     CameraStatus,
@@ -144,6 +145,7 @@ class Orchestrator:
                             set_frequency_hz=None,
                             set_amplitude_vpp=None,
                             weight_g=self._initial_weight_g,
+                            target_displacement_um=None,
                         )
                     )
                     self._write_experiment_json(exp, status=ExperimentStatus.RUNNING)
@@ -157,7 +159,17 @@ class Orchestrator:
                 combos = expand_sweep(
                     speeds_rpm=list(self._cfg.sweep.speeds_rpm),
                     frequencies_hz=list(self._cfg.sweep.frequencies_hz),
-                    amplitudes_vpp=list(self._cfg.sweep.amplitudes_vpp),
+                    amplitudes_vpp=(
+                        list(self._cfg.sweep.amplitudes_vpp)
+                        if self._cfg.sweep.amplitudes_vpp is not None
+                        else None
+                    ),
+                    displacements_um=(
+                        list(self._cfg.sweep.displacements_um)
+                        if self._cfg.sweep.displacements_um is not None
+                        else None
+                    ),
+                    resolved_amplitudes_vpp=resolve_sweep_displacements(self._cfg),
                     hold_s=self._cfg.sweep.hold_s,
                     randomize=self._cfg.sweep.random,
                 )
@@ -167,6 +179,7 @@ class Orchestrator:
                     set_speed_rpm=first.set_speed_rpm,
                     set_frequency_hz=first.frequency_hz,
                     set_amplitude_vpp=first.amplitude_vpp,
+                    target_displacement_um=first.target_displacement_um,
                 )
                 first_folder = exp.create_combo_folder(first)
 
@@ -268,6 +281,7 @@ class Orchestrator:
                     set_speed_rpm=combo.set_speed_rpm,
                     set_frequency_hz=combo.frequency_hz,
                     set_amplitude_vpp=combo.amplitude_vpp,
+                    target_displacement_um=combo.target_displacement_um,
                 )
 
             if combo.changed in ("initial", "rpm"):
@@ -276,7 +290,7 @@ class Orchestrator:
             if combo.changed in ("initial", "rpm", "freq"):
                 fg.set_frequency_hz(combo.frequency_hz)
             fg.set_amplitude_vpp(combo.amplitude_vpp)
-            if combo.combo_index == 1:
+            if execution_index == 0:
                 fg.enable_output(True)
 
             step_meta = self._initial_step_meta(combo)
@@ -400,6 +414,7 @@ class Orchestrator:
             "set_speed_rpm": combo.set_speed_rpm,
             "set_frequency_hz": combo.frequency_hz,
             "set_amplitude_vpp": combo.amplitude_vpp,
+            "target_displacement_um": combo.target_displacement_um,
             "changed": combo.changed,
             "hold_s": combo.hold_s,
             "stabilization_s": self._stabilization_for(combo.changed),
@@ -441,6 +456,7 @@ class Orchestrator:
                 status=status,
                 n_captures=int(step_meta.get("captures", 0)),
                 failure_reason=failure_reason,
+                target_displacement_um=combo.target_displacement_um,
             )
         )
 

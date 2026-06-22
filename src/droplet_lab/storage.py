@@ -75,6 +75,7 @@ class PumpRow:
     set_amplitude_vpp: float | None
     actual_speed_rpm: int | None
     temperature_c: float | None
+    target_displacement_um: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +91,7 @@ class OscilloscopeRow:
     p2p_displacement_um: float | None
     ch2_vrms_dc_v: float | None
     ch3_vrms_dc_v: float | None
+    target_displacement_um: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +104,7 @@ class ScaleRow:
     set_frequency_hz: float | None
     set_amplitude_vpp: float | None
     weight_g: float | None
+    target_displacement_um: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +121,7 @@ class RunsRow:
     status: str
     n_captures: int
     failure_reason: str | None
+    target_displacement_um: float | None = None
 
 
 # -------- CSV writer wrappers --------
