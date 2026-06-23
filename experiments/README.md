@@ -27,8 +27,8 @@ uv run droplet run experiments/<your_file>.yaml
 | `timing.wait_time_camera` | float >= 0 | s | Extra wait after a successful imaging step before moving to the next combo folder. Use this to let camera buffers clear before DigiCamControl switches folders. Default `0.0`. |
 | `limits.max_speed_rpm` | int > 0 | rpm | Hard cap; sweep validation rejects speeds above this. |
 | `displacement.model_path` | path or null | - | Calibration model JSON used for displacement-mode runs. Required when `sweep.displacements_um` is set. Calibration writes here when provided. |
-| `displacement.max_voltage_table_path` | path or null | - | Excel workbook with `Frequency [Hz]` and `max. Voltage [V]` columns for calibration safety limits. |
-| `displacement.amplifier_gain` | float > 0 | - | Default `2.0`. Workbook max voltages are divided by this gain before setting the function generator. |
+| `displacement.max_voltage_table_path` | path or null | - | CSV file with `Frequency [Hz]` and `max. Voltage [V]` columns for calibration safety limits. Comma, semicolon, and tab delimiters are accepted. |
+| `displacement.amplifier_gain` | float > 0 | - | Default `2.0`. CSV max voltages are divided by this gain before setting the function generator. |
 | `displacement.calibration_start_hz` | float > 0 | Hz | Default `10.0`. First calibration frequency. |
 | `displacement.calibration_stop_hz` | float > 0 | Hz | Default `120.0`. Last calibration frequency. |
 | `displacement.calibration_step_hz` | float > 0 | Hz | Default `10.0`. Calibration frequency increment. |
@@ -95,14 +95,15 @@ Use peak-to-peak displacement targets by replacing `sweep.amplitudes_vpp` with
 ```yaml
 sweep:
   speeds_rpm: [1125, 1175]
-  frequencies_hz: [10, 20, 30]
+  frequencies_hz: [10.7, 20, 30]
   displacements_um: [1000, 1500]
   hold_s: 120
 
 displacement:
   model_path: ./DATA/displacement_calibration.json
-  max_voltage_table_path: ../VIBROMETER/CALIBRATION_V2/MaxDisplacement_init.xlsx
+  max_voltage_table_path: ../VIBROMETER/CALIBRATION_V2/MaxDisplacement_init.csv
   amplifier_gain: 2.0
+  calibration_start_hz: 10.7
   voltage_steps: 5
   measurement_s: 10
   validation_enabled: true
@@ -112,3 +113,7 @@ displacement:
 Run `uv run droplet calibrate-displacement <yaml>` first to create the model,
 then `uv run droplet run <yaml> --validate-displacement` to check the target
 points before the actual experiment.
+
+If a measured displacement point dips below the previous voltage step during
+calibration, it is omitted from the usable model. The unfiltered measurements
+are kept next to the model as `<model-name>.raw.csv`.

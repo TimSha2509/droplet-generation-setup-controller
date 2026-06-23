@@ -12,6 +12,8 @@ from itertools import pairwise
 from pathlib import Path
 from statistics import median
 
+from loguru import logger
+
 from droplet_lab.config import MAX_AMPLITUDE_VPP, DisplacementConfig, ExperimentConfig
 from droplet_lab.devices.base import FunctionGenerator, Oscilloscope
 from droplet_lab.state import ExperimentState
@@ -66,6 +68,12 @@ class ValidationResult:
     warning: bool
 
 
+@dataclass(frozen=True, slots=True)
+class CalibrationFilterResult:
+    model: CalibrationModel
+    skipped_measurements: list[CalibrationMeasurement]
+
+
 def calibration_frequencies(cfg: DisplacementConfig) -> list[float]:
     out: list[float] = []
     current = cfg.calibration_start_hz
@@ -82,18 +90,22 @@ def voltage_steps(max_amplitude_vpp: float, count: int) -> list[float]:
     return [max_amplitude_vpp * i / count for i in range(1, count + 1)]
 
 
-def load_voltage_limits_xlsx(path: Path) -> list[VoltageLimitPoint]:
-    try:
-        import openpyxl
-    except ImportError as exc:
-        raise RuntimeError("openpyxl is required to read .xlsx voltage limit files") from exc
+def load_voltage_limits_csv(path: Path) -> list[VoltageLimitPoint]:
+    if path.is_dir():
+        raise ValueError(f"{path}: expected a CSV file, got a directory")
 
-    workbook = openpyxl.load_workbook(path, data_only=True, read_only=True)
-    worksheet = workbook[workbook.sheetnames[0]]
-    rows = list(worksheet.iter_rows(values_only=True))
+    with path.open("r", encoding="utf-8-sig", newline="") as fp:
+        sample = fp.read(4096)
+        fp.seek(0)
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
+        except csv.Error:
+            dialect = csv.excel
+        rows = list(csv.reader(fp, dialect))
+
     if not rows:
-        raise ValueError(f"{path}: workbook is empty")
-    headers = [str(cell).strip() if cell is not None else "" for cell in rows[0]]
+        raise ValueError(f"{path}: CSV file is empty")
+    headers = [cell.strip() for cell in rows[0]]
     try:
         frequency_idx = headers.index("Frequency [Hz]")
         max_voltage_idx = headers.index("max. Voltage [V]")
@@ -108,9 +120,14 @@ def load_voltage_limits_xlsx(path: Path) -> list[VoltageLimitPoint]:
             continue
         raw_freq = row[frequency_idx]
         raw_max = row[max_voltage_idx]
-        if raw_freq is None or raw_max is None:
+        if not raw_freq.strip() or not raw_max.strip():
             continue
-        points.append(VoltageLimitPoint(frequency_hz=float(raw_freq), max_voltage_v=float(raw_max)))
+        points.append(
+            VoltageLimitPoint(
+                frequency_hz=_parse_table_float(raw_freq),
+                max_voltage_v=_parse_table_float(raw_max),
+            )
+        )
     if len(points) < 2:
         raise ValueError(f"{path}: expected at least two voltage limit rows")
     return sorted(points, key=lambda p: p.frequency_hz)
@@ -125,7 +142,7 @@ def safe_amplitude_limit_vpp(
     max_voltage_v = _interpolate_by_frequency(
         frequency_hz,
         [(p.frequency_hz, p.max_voltage_v) for p in limits],
-        label="voltage limit",
+        label="voltage-limit frequency",
     )
     return min(MAX_AMPLITUDE_VPP, max_voltage_v / amplifier_gain)
 
@@ -183,7 +200,10 @@ def validate_calibration_model(model: CalibrationModel) -> None:
                 raise ValueError(f"frequency {curve.frequency_hz} has duplicate voltage points")
             if measurement.median_displacement_um <= previous_disp:
                 raise ValueError(
-                    f"frequency {curve.frequency_hz} displacement is not monotonic with voltage"
+                    f"frequency {curve.frequency_hz} displacement is not monotonic with voltage: "
+                    f"{measurement.set_amplitude_vpp:g} Vpp measured "
+                    f"{measurement.median_displacement_um:g} um after {previous_amp:g} Vpp "
+                    f"measured {previous_disp:g} um"
                 )
             previous_amp = measurement.set_amplitude_vpp
             previous_disp = measurement.median_displacement_um
@@ -266,7 +286,7 @@ def run_displacement_calibration(
     displacement = cfg.displacement
     if displacement.max_voltage_table_path is None:
         raise ValueError("displacement.max_voltage_table_path is required for calibration")
-    limits = load_voltage_limits_xlsx(displacement.max_voltage_table_path)
+    limits = load_voltage_limits_csv(displacement.max_voltage_table_path)
     curves: list[CalibrationCurve] = []
     fg.set_sine()
     fg.enable_output(False)
@@ -311,19 +331,74 @@ def run_displacement_calibration(
             )
         )
     fg.enable_output(False)
-    model = CalibrationModel(
+    raw_model = CalibrationModel(
         version=1,
         created_at_utc=utc_now_iso(),
         vibrometer_factor_um_per_v=cfg.vibrometer.factor_um_per_v,
         amplifier_gain=displacement.amplifier_gain,
         curves=curves,
     )
-    validate_calibration_model(model)
     model_path = _default_model_path(cfg)
     csv_path = model_path.with_suffix(".csv")
+    filter_result = filter_non_monotonic_measurements(raw_model)
+    model = filter_result.model
+    if filter_result.skipped_measurements:
+        raw_csv_path = model_path.with_suffix(".raw.csv")
+        write_calibration_csv(raw_model, raw_csv_path)
+        logger.warning(
+            "filtered {} non-monotonic calibration measurement(s); raw rows written to {}",
+            len(filter_result.skipped_measurements),
+            raw_csv_path,
+        )
+    try:
+        validate_calibration_model(model)
+    except ValueError as exc:
+        invalid_model_path = model_path.with_suffix(".invalid.json")
+        invalid_csv_path = model_path.with_suffix(".invalid.csv")
+        save_calibration_model(model, invalid_model_path)
+        write_calibration_csv(model, invalid_csv_path)
+        raise ValueError(
+            f"{exc}; raw calibration written to {invalid_model_path} and {invalid_csv_path}"
+        ) from exc
     save_calibration_model(model, model_path)
     write_calibration_csv(model, csv_path)
     return model, model_path, csv_path
+
+
+def filter_non_monotonic_measurements(model: CalibrationModel) -> CalibrationFilterResult:
+    curves: list[CalibrationCurve] = []
+    skipped: list[CalibrationMeasurement] = []
+    for curve in model.curves:
+        kept: list[CalibrationMeasurement] = []
+        previous_disp = -math.inf
+        for measurement in sorted(curve.measurements, key=lambda m: m.set_amplitude_vpp):
+            if measurement.median_displacement_um > previous_disp:
+                kept.append(measurement)
+                previous_disp = measurement.median_displacement_um
+            else:
+                skipped.append(measurement)
+        if len(kept) < 2:
+            raise ValueError(
+                f"frequency {curve.frequency_hz} has fewer than two monotonic calibration "
+                "points after filtering noisy measurements"
+            )
+        curves.append(
+            CalibrationCurve(
+                frequency_hz=curve.frequency_hz,
+                safe_max_amplitude_vpp=curve.safe_max_amplitude_vpp,
+                measurements=kept,
+            )
+        )
+    return CalibrationFilterResult(
+        model=CalibrationModel(
+            version=model.version,
+            created_at_utc=model.created_at_utc,
+            vibrometer_factor_um_per_v=model.vibrometer_factor_um_per_v,
+            amplifier_gain=model.amplifier_gain,
+            curves=curves,
+        ),
+        skipped_measurements=skipped,
+    )
 
 
 def validate_displacement_targets(
@@ -496,3 +571,10 @@ def _linear_interpolate(x: float, x0: float, y0: float, x1: float, y1: float) ->
         return y0
     ratio = (x - x0) / (x1 - x0)
     return y0 + ratio * (y1 - y0)
+
+
+def _parse_table_float(value: str) -> float:
+    stripped = value.strip()
+    if "," in stripped and "." not in stripped:
+        stripped = stripped.replace(",", ".")
+    return float(stripped)

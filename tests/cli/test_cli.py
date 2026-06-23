@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -172,14 +171,13 @@ def test_run_validation_prints_warning_table(tmp_path: Path) -> None:
 
 
 def test_calibrate_displacement_simulated_writes_model_and_csv(tmp_path: Path) -> None:
-    openpyxl = pytest.importorskip("openpyxl")
-    limits_path = tmp_path / "limits.xlsx"
-    workbook = openpyxl.Workbook()
-    worksheet = workbook.active
-    worksheet.append(["Frequency [Hz]", "max. Voltage [V]"])
-    worksheet.append([10.0, 4.0])
-    worksheet.append([20.0, 4.0])
-    workbook.save(limits_path)
+    limits_path = tmp_path / "limits.csv"
+    limits_path.write_text(
+        "Frequency [Hz];max. Voltage [V]\n"
+        "10.0;4.0\n"
+        "20.0;4.0\n",
+        encoding="utf-8",
+    )
 
     yml = _write_minimal_yaml(tmp_path)
     model_path = tmp_path / "calibration.json"

@@ -188,8 +188,8 @@ uv run droplet run experiments/example_displacement.yaml --validate-displacement
 ```
 
 Displacement mode uses `sweep.displacements_um` instead of `sweep.amplitudes_vpp`.
-Calibration reads the Excel max-voltage table, assumes amplifier gain `2.0`, and
-prompts you to confirm that gain before calibration or validation. The Excel
+Calibration reads the CSV max-voltage table, assumes amplifier gain `2.0`, and
+prompts you to confirm that gain before calibration or validation. The CSV
 `max. Voltage [V]` values are amplifier-side voltages, so the function generator
 limit is half that value and never above the global `9.5 Vpp` cap.
 

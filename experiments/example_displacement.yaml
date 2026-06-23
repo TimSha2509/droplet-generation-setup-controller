@@ -5,20 +5,20 @@ vibrometer:
   factor_um_per_v: 5120
 
 sweep:
-  speeds_rpm: [1125, 1175]
-  frequencies_hz: [10.0, 20.0, 30.0]
-  displacements_um: [1000.0, 1500.0]
-  hold_s: 120
+  speeds_rpm: [1125]
+  frequencies_hz: [3.0, 6.0, 0.0]
+  displacements_um: [2600.0, 2800,3000]
+  hold_s: 20
   random: false
 
 displacement:
   model_path: ./DATA/displacement_calibration.json
-  max_voltage_table_path: W:\PROMOTION_SHARIFSOLTANI_VERKAPSELUNG_DFG_TH1817_9_1_MT\VIBROMETER\CALIBRATION_V2
+  max_voltage_table_path: W:\PROMOTION_SHARIFSOLTANI_VERKAPSELUNG_DFG_TH1817_9_1_MT\VIBROMETER\CALIBRATION_V2\MaxDisplacement_init.csv
   amplifier_gain: 2.0
-  calibration_start_hz: 10.0
-  calibration_stop_hz: 120.0
-  calibration_step_hz: 10.0
-  voltage_steps: 5
+  calibration_start_hz: 3.0
+  calibration_stop_hz: 30.0
+  calibration_step_hz: 2.0
+  voltage_steps: 3
   measurement_s: 10.0
   scope_interval_s: 0.5
   validation_enabled: true
@@ -44,11 +44,11 @@ devices:
   camera:
     digicam_url: "http://localhost:5513"
     trigger_backend: arduino
-    shutter_port: COMXXX
+    shutter_port: COM7
     shutter_baudrate: 9600
     shutter_pulse_ms: 300
   function_generator:
-    port: COM6
+    port: COM7
     channel: 1
   scale:
     enabled: true

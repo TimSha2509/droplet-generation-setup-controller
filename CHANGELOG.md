@@ -46,7 +46,7 @@ Compared with `origin/codex/changelog-controller-updates`.
   loading, and resolved function-generator Vpp values.
 - Added `droplet calibrate-displacement` to build frequency/voltage/displacement
   calibration JSON and CSV artifacts from oscilloscope readings.
-- Added frequency-dependent max-voltage safety limits from Excel workbooks with
+- Added frequency-dependent max-voltage safety limits from CSV tables with
   amplifier gain confirmation before calibration and validation.
 - Added optional pre-run displacement validation with terminal error reporting
   and warnings above the configured percent threshold.
@@ -55,7 +55,10 @@ Compared with `origin/codex/changelog-controller-updates`.
 
 - Extended run metadata and CSV rows with target displacement alongside resolved
   Vpp values when displacement mode is active.
-- Added `openpyxl` for reading `.xlsx` calibration limit workbooks.
+- Removed the spreadsheet dependency from calibration limit loading.
+- Calibration now filters non-monotonic voltage/displacement points before
+  writing the usable displacement model and keeps raw calibration rows in a
+  `.raw.csv` file when filtering was needed.
 
 ## Unreleased - 2026-06-18
 
