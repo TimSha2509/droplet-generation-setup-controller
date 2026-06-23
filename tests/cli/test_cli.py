@@ -246,6 +246,61 @@ def test_simulate_only_accepts_function_generator(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
 
 
+def test_run_rejects_real_arduino_camera_sharing_real_pump_port(tmp_path: Path) -> None:
+    yml = _write_minimal_yaml(tmp_path)
+    data = yaml.safe_load(yml.read_text())
+    data["devices"]["camera"].update(
+        {
+            "trigger_backend": "arduino",
+            "shutter_port": "COM3",
+        }
+    )
+    yml.write_text(yaml.safe_dump(data))
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            str(yml),
+            "--simulate-only",
+            "scope,scale,function_generator",
+            "--dry-run",
+            "--no-confirm",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Arduino shutter port COM3" in result.output
+    assert "pump" in result.output
+
+
+def test_run_allows_arduino_camera_sharing_simulated_pump_port(tmp_path: Path) -> None:
+    yml = _write_minimal_yaml(tmp_path)
+    data = yaml.safe_load(yml.read_text())
+    data["devices"]["camera"].update(
+        {
+            "trigger_backend": "arduino",
+            "shutter_port": "COM3",
+        }
+    )
+    yml.write_text(yaml.safe_dump(data))
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            str(yml),
+            "--simulate-only",
+            "pump,scope,scale,function_generator",
+            "--dry-run",
+            "--no-confirm",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "--dry-run: not executing" in result.output
+
+
 def test_simulate_only_rejects_unknown_device(tmp_path: Path) -> None:
     yml = _write_minimal_yaml(tmp_path)
     result = runner.invoke(app, ["run", str(yml), "--simulate-only", "bogus"])

@@ -164,6 +164,9 @@ The first line of stdout is `experiment dir: ...`.
 
 **Use Arduino shutter triggering while DigiCamControl handles storage:**
 
+Upload `docs/arduino_shutter_controller_v2.ino` to the Arduino first; the Python
+driver expects the `READY shutter-v2` startup line and command IDs from that sketch.
+
 ```yaml
 timing:
   wait_time_camera: 5

@@ -71,7 +71,8 @@ uv run droplet run experiments/<your_file>.yaml
 
 DigiCamControl still handles image download and per-combo folder routing. To trigger
 the camera through the Arduino remote-shutter sketch, set the camera trigger backend
-and choose the Arduino COM port:
+and choose the Arduino COM port. Upload `docs/arduino_shutter_controller_v2.ino`
+to the Arduino; the Python driver expects its `READY shutter-v2` protocol.
 
 ```yaml
 timing:

@@ -5,17 +5,17 @@ vibrometer:
   factor_um_per_v: 5120
 
 sweep:
-  speeds_rpm:     [1125]
-  frequencies_hz: [5.0, 5.5]
-  amplitudes_vpp: [2.0]
-  hold_s: 50
+  speeds_rpm:     [200]
+  frequencies_hz: [3.0, 6.0, 30.0]
+  amplitudes_vpp: [2.0, 3.0, 4.0]
+  hold_s: 100
   random: false
 
 timing:
   stabilization_rpm_change_s: 10
   stabilization_freq_change_s: 0.5
   stabilization_amp_change_s: 0.5
-  image_interval_s: 4
+  image_interval_s: 2 #Currently set to continuus trigger via arduino.py, so this might have no effect.
   camera_latency_tolerance_s: 5
   wait_time_camera: 0.0
 

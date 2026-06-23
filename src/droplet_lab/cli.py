@@ -130,6 +130,38 @@ def _parse_simulate_only(raw: str | None) -> set[str]:
     return items
 
 
+def _validate_arduino_serial_port_conflicts(cfg: ExperimentConfig, fakes: set[str]) -> None:
+    camera = cfg.devices.camera
+    if camera.trigger_backend != "arduino" or "camera" in fakes:
+        return
+    if camera.shutter_port is None:
+        return
+
+    shutter_port = camera.shutter_port.casefold()
+    conflicts: list[str] = []
+    if "pump" not in fakes and cfg.devices.pump.port.casefold() == shutter_port:
+        conflicts.append("pump")
+    if (
+        "function_generator" not in fakes
+        and cfg.devices.function_generator.port.casefold() == shutter_port
+    ):
+        conflicts.append("function_generator")
+    if (
+        cfg.devices.scale.enabled
+        and "scale" not in fakes
+        and cfg.devices.scale.port is not None
+        and cfg.devices.scale.port.casefold() == shutter_port
+    ):
+        conflicts.append("scale")
+
+    if conflicts:
+        names = ", ".join(conflicts)
+        raise typer.BadParameter(
+            f"Arduino shutter port {camera.shutter_port} is also configured for real "
+            f"device(s): {names}. Use a different COM port or simulate one side."
+        )
+
+
 @app.command()
 def run(
     yaml_path: Path,
@@ -179,6 +211,7 @@ def run(
     fakes = _parse_simulate_only(simulate_only)
     if simulate:
         fakes = set(_VALID_SIMULATE_ONLY)
+    _validate_arduino_serial_port_conflicts(cfg, fakes)
 
     n_combos = _combo_count(cfg)
     resolved_amplitudes = resolve_sweep_displacements(cfg)

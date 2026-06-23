@@ -43,6 +43,10 @@ devices:
     visa_resource: "USB0::0x2A8D::0x1778::MY55440264::0::INSTR"
   camera:
     digicam_url: "http://localhost:5513"
+    trigger_backend: arduino
+    shutter_port: COMXXX
+    shutter_baudrate: 9600
+    shutter_pulse_ms: 300
   function_generator:
     port: COM6
     channel: 1
