@@ -16,10 +16,12 @@ from droplet_lab.devices.base import ScopeMeasurement
 _KEYSIGHT_INVALID_SENTINEL = 9.9e37  # scope returns ~9.91E+37 when no signal
 
 
-def _safe_float(text: str) -> float | None:
+def _safe_float(text: str | None) -> float | None:
+    if text is None:
+        return None
     try:
         value = float(text.strip())
-    except (ValueError, AttributeError):
+    except ValueError:
         return None
     if math.isnan(value) or math.isinf(value) or abs(value) >= _KEYSIGHT_INVALID_SENTINEL:
         return None

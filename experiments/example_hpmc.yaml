@@ -5,12 +5,13 @@ nozzle_id: 1mm_A
 vibrometer:
   factor_um_per_v: 5280
 
-# Full cross product is fired in order: rpm outermost, then frequency, then amplitude.
+# Full cross product is fired in order unless random is set to true.
 sweep:
   speeds_rpm:     [150, 400]
   frequencies_hz: [6, 10]
   amplitudes_vpp: [1.0, 3.0]
   hold_s: 300                          # per combination
+  random: false                         # true = deterministic Fisher-Yates shuffled order
 
 timing:
   stabilization_rpm_change_s: 10
@@ -18,6 +19,7 @@ timing:
   stabilization_amp_change_s: 2
   image_interval_s: 5
   camera_latency_tolerance_s: 1.0
+  wait_time_camera: 0.0
 
 limits:
   max_speed_rpm: 1000

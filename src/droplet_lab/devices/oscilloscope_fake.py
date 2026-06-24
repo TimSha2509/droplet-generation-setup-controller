@@ -41,10 +41,15 @@ class FakeOscilloscope:
 
     def measure(self) -> ScopeMeasurement:
         rpm = self._state.set_speed_rpm or 0
+        frequency_hz = self._state.set_frequency_hz or 200.0
+        amplitude_vpp = self._state.set_amplitude_vpp
         noise = self._rng.uniform(-self._noise, self._noise)
-        vpp = max(0.0, 0.001 * rpm + 0.05 + noise)
+        if amplitude_vpp is None or amplitude_vpp <= 0:
+            vpp = max(0.0, 0.001 * rpm + 0.05 + noise)
+        else:
+            vpp = max(0.0, 0.2 * amplitude_vpp + 0.0005 * frequency_hz + noise)
         return ScopeMeasurement(
-            frequency_hz=200.0 + noise * 5.0,
+            frequency_hz=frequency_hz + noise * 5.0,
             vpp_v=round(vpp, 6),
             ch2_vrms_dc_v=round(0.5 + noise * 0.2, 6),
             ch3_vrms_dc_v=round(0.5 + noise * 0.2, 6),

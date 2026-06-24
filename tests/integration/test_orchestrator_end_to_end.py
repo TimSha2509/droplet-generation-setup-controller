@@ -10,6 +10,12 @@ from droplet_lab.devices.function_generator_fake import FakeFunctionGenerator
 from droplet_lab.devices.oscilloscope_fake import FakeOscilloscope
 from droplet_lab.devices.pump_fake import FakePump
 from droplet_lab.devices.scale_fake import FakeScale
+from droplet_lab.displacement import (
+    CalibrationCurve,
+    CalibrationMeasurement,
+    CalibrationModel,
+    save_calibration_model,
+)
 from droplet_lab.orchestrator import DeviceBundle, Orchestrator, OrchestratorResult
 from droplet_lab.state import ExperimentState, ExperimentStatus, StepStatus
 from droplet_lab.storage import combo_folder_name
@@ -46,6 +52,48 @@ def _run(
 def _load_mini(tmp_path: Path) -> ExperimentConfig:
     cfg = load_experiment(Path("experiments/example_sweep_mini.yaml"))
     return cfg.model_copy(update={"output": OutputConfig(base_dir=tmp_path)})
+
+
+class RecordingWaitOrchestrator(Orchestrator):
+    def __init__(self, *args, stop_on_camera_wait: bool = False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.wait_calls: list[tuple[float, int | None]] = []
+        self.stop_on_camera_wait = stop_on_camera_wait
+
+    def _wait(self, seconds: float) -> bool:
+        self.wait_calls.append((seconds, self._state.combo_index))
+        if seconds == self._cfg.timing.wait_time_camera and self.stop_on_camera_wait:
+            self.request_stop()
+            return True
+        return False
+
+
+def _with_camera_wait(
+    cfg: ExperimentConfig,
+    *,
+    wait_time_camera: float,
+    combos: int,
+) -> ExperimentConfig:
+    return cfg.model_copy(
+        update={
+            "sweep": cfg.sweep.model_copy(
+                update={
+                    "amplitudes_vpp": [3.0, 5.0][:combos],
+                    "hold_s": 0.05,
+                }
+            ),
+            "timing": cfg.timing.model_copy(
+                update={
+                    "stabilization_rpm_change_s": 0.0,
+                    "stabilization_freq_change_s": 0.0,
+                    "stabilization_amp_change_s": 0.0,
+                    "image_interval_s": 1.0,
+                    "camera_latency_tolerance_s": 0.0,
+                    "wait_time_camera": wait_time_camera,
+                }
+            ),
+        }
+    )
 
 
 def test_single_combination_completes(minimal_config: ExperimentConfig) -> None:
@@ -123,6 +171,59 @@ def test_camera_failure_marks_experiment_failed(minimal_config: ExperimentConfig
     assert len(failed) >= 1
 
 
+def test_wait_time_camera_runs_between_completed_combos(
+    minimal_config: ExperimentConfig,
+) -> None:
+    cfg = _with_camera_wait(minimal_config, wait_time_camera=2.0, combos=2)
+    state = ExperimentState()
+    orch = RecordingWaitOrchestrator(config=cfg, devices=_build_devices(state), state=state)
+
+    result = orch.run()
+
+    assert result.status is ExperimentStatus.COMPLETED
+    camera_waits = [call for call in orch.wait_calls if call[0] == 2.0]
+    assert camera_waits == [(2.0, 1)]
+
+
+def test_wait_time_camera_does_not_run_after_final_combo(
+    minimal_config: ExperimentConfig,
+) -> None:
+    cfg = _with_camera_wait(minimal_config, wait_time_camera=2.0, combos=1)
+    state = ExperimentState()
+    orch = RecordingWaitOrchestrator(config=cfg, devices=_build_devices(state), state=state)
+
+    result = orch.run()
+
+    assert result.status is ExperimentStatus.COMPLETED
+    assert [call for call in orch.wait_calls if call[0] == 2.0] == []
+
+
+def test_stop_during_wait_time_camera_aborts_current_combo(
+    minimal_config: ExperimentConfig,
+) -> None:
+    cfg = _with_camera_wait(minimal_config, wait_time_camera=2.0, combos=2)
+    state = ExperimentState()
+    orch = RecordingWaitOrchestrator(
+        config=cfg,
+        devices=_build_devices(state),
+        state=state,
+        stop_on_camera_wait=True,
+    )
+
+    result = orch.run()
+
+    assert result.status is ExperimentStatus.ABORTED
+    rows = (result.experiment_dir.root / "runs.csv").read_text().splitlines()[1:]
+    assert len(rows) == 1
+    assert ";aborted;" in rows[0]
+    step_meta = json.loads(
+        (
+            result.experiment_dir.root / "steps" / "combo_001_rpm0200_f20Hz_amp3V" / "step.json"
+        ).read_text()
+    )
+    assert step_meta["status"] == StepStatus.ABORTED.value
+
+
 def test_scale_enabled_writes_scale_csv_with_initial_row(minimal_config: ExperimentConfig) -> None:
     cfg = minimal_config.model_copy(
         update={
@@ -154,7 +255,22 @@ def test_scale_enabled_writes_scale_csv_with_initial_row(minimal_config: Experim
 
 
 def test_full_sweep_writes_eight_combos_in_order(tmp_path: Path) -> None:
-    cfg = _load_mini(tmp_path)
+    base_cfg = _load_mini(tmp_path)
+    cfg = base_cfg.model_copy(
+        update={
+            "sweep": base_cfg.sweep.model_copy(update={"hold_s": 0.05}),
+            "timing": base_cfg.timing.model_copy(
+                update={
+                    "stabilization_rpm_change_s": 0.0,
+                    "stabilization_freq_change_s": 0.0,
+                    "stabilization_amp_change_s": 0.0,
+                    "image_interval_s": 1.0,
+                    "camera_latency_tolerance_s": 0.0,
+                    "wait_time_camera": 0.0,
+                }
+            ),
+        }
+    )
     state = ExperimentState()
     fake_fg = FakeFunctionGenerator()
     devices: DeviceBundle = {
@@ -170,14 +286,14 @@ def test_full_sweep_writes_eight_combos_in_order(tmp_path: Path) -> None:
     root = result.experiment_dir.root
     names = sorted(c.name for c in (root / "steps").iterdir())
     assert names == [
-        "combo_001_rpm0200_f20Hz_amp3V",
-        "combo_002_rpm0200_f20Hz_amp5V",
-        "combo_003_rpm0200_f25Hz_amp3V",
-        "combo_004_rpm0200_f25Hz_amp5V",
-        "combo_005_rpm0300_f20Hz_amp3V",
-        "combo_006_rpm0300_f20Hz_amp5V",
-        "combo_007_rpm0300_f25Hz_amp3V",
-        "combo_008_rpm0300_f25Hz_amp5V",
+        "combo_001_rpm1125_f5Hz_amp2V",
+        "combo_002_rpm1125_f5Hz_amp4V",
+        "combo_003_rpm1125_f5.5Hz_amp2V",
+        "combo_004_rpm1125_f5.5Hz_amp4V",
+        "combo_005_rpm1175_f5Hz_amp2V",
+        "combo_006_rpm1175_f5Hz_amp4V",
+        "combo_007_rpm1175_f5.5Hz_amp2V",
+        "combo_008_rpm1175_f5.5Hz_amp4V",
     ]
     for folder in (root / "steps").iterdir():
         assert (folder / "step.json").exists()
@@ -202,21 +318,21 @@ def test_full_sweep_writes_eight_combos_in_order(tmp_path: Path) -> None:
     keep = {"set_frequency_hz", "set_amplitude_vpp", "enable_output"}
     trimmed = [c for c in fake_fg.calls if c[0] in keep]
     # Drop any leading enable_output(False) from __enter__ + safe defaults setup.
-    idx = trimmed.index(("set_frequency_hz", 20.0))
+    idx = trimmed.index(("set_frequency_hz", 5.0))
     expected = [
-        ("set_frequency_hz", 20.0),
-        ("set_amplitude_vpp", 3.0),
+        ("set_frequency_hz", 5.0),
+        ("set_amplitude_vpp", 2.0),
         ("enable_output", True),
-        ("set_amplitude_vpp", 5.0),
-        ("set_frequency_hz", 25.0),
-        ("set_amplitude_vpp", 3.0),
-        ("set_amplitude_vpp", 5.0),
-        ("set_frequency_hz", 20.0),
-        ("set_amplitude_vpp", 3.0),
-        ("set_amplitude_vpp", 5.0),
-        ("set_frequency_hz", 25.0),
-        ("set_amplitude_vpp", 3.0),
-        ("set_amplitude_vpp", 5.0),
+        ("set_amplitude_vpp", 4.0),
+        ("set_frequency_hz", 5.5),
+        ("set_amplitude_vpp", 2.0),
+        ("set_amplitude_vpp", 4.0),
+        ("set_frequency_hz", 5.0),
+        ("set_amplitude_vpp", 2.0),
+        ("set_amplitude_vpp", 4.0),
+        ("set_frequency_hz", 5.5),
+        ("set_amplitude_vpp", 2.0),
+        ("set_amplitude_vpp", 4.0),
     ]
     assert trimmed[idx : idx + len(expected)] == expected
 
@@ -224,6 +340,109 @@ def test_full_sweep_writes_eight_combos_in_order(tmp_path: Path) -> None:
     payload = json.loads((root / "experiment.json").read_text())
     assert payload["status"] == "completed"
     assert payload["initial_weight_g"] is not None
+
+
+def test_randomized_sweep_executes_shuffled_order_with_same_folder_names(
+    minimal_config: ExperimentConfig,
+) -> None:
+    cfg = minimal_config.model_copy(
+        update={
+            "sweep": minimal_config.sweep.model_copy(
+                update={
+                    "speeds_rpm": [200, 800],
+                    "frequencies_hz": [20.0, 25.0],
+                    "amplitudes_vpp": [3.0, 5.0],
+                    "hold_s": 0.2,
+                    "random": True,
+                }
+            )
+        }
+    )
+    state = ExperimentState()
+    devices = _build_devices(state)
+
+    result = Orchestrator(config=cfg, devices=devices, state=state).run()
+
+    assert result.status is ExperimentStatus.COMPLETED, result.failure_reason
+    root = result.experiment_dir.root
+    assert sorted(c.name for c in (root / "steps").iterdir()) == [
+        "combo_001_rpm0200_f20Hz_amp3V",
+        "combo_002_rpm0200_f20Hz_amp5V",
+        "combo_003_rpm0200_f25Hz_amp3V",
+        "combo_004_rpm0200_f25Hz_amp5V",
+        "combo_005_rpm0800_f20Hz_amp3V",
+        "combo_006_rpm0800_f20Hz_amp5V",
+        "combo_007_rpm0800_f25Hz_amp3V",
+        "combo_008_rpm0800_f25Hz_amp5V",
+    ]
+
+    rows = (root / "runs.csv").read_text().splitlines()[1:]
+    assert [int(row.split(";")[1]) for row in rows] == [5, 2, 6, 3, 1, 4, 8, 7]
+    assert [row.split(";")[8].replace("\\", "/") for row in rows] == [
+        "steps/combo_005_rpm0800_f20Hz_amp3V",
+        "steps/combo_002_rpm0200_f20Hz_amp5V",
+        "steps/combo_006_rpm0800_f20Hz_amp5V",
+        "steps/combo_003_rpm0200_f25Hz_amp3V",
+        "steps/combo_001_rpm0200_f20Hz_amp3V",
+        "steps/combo_004_rpm0200_f25Hz_amp5V",
+        "steps/combo_008_rpm0800_f25Hz_amp5V",
+        "steps/combo_007_rpm0800_f25Hz_amp3V",
+    ]
+
+
+def test_displacement_sweep_resolves_voltage_and_records_target(
+    minimal_config: ExperimentConfig,
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "model.json"
+    save_calibration_model(
+        CalibrationModel(
+            version=1,
+            created_at_utc="2026-06-19T00:00:00Z",
+            vibrometer_factor_um_per_v=minimal_config.vibrometer.factor_um_per_v,
+            amplifier_gain=2.0,
+            curves=[
+                CalibrationCurve(
+                    frequency_hz=20.0,
+                    safe_max_amplitude_vpp=5.0,
+                    measurements=[
+                        CalibrationMeasurement(1.0, 1.0, 1000.0, [1000.0]),
+                        CalibrationMeasurement(3.0, 3.0, 3000.0, [3000.0]),
+                    ],
+                )
+            ],
+        ),
+        model_path,
+    )
+    cfg = minimal_config.model_copy(
+        update={
+            "sweep": minimal_config.sweep.model_copy(
+                update={
+                    "amplitudes_vpp": None,
+                    "displacements_um": [2000.0],
+                    "hold_s": 0.1,
+                }
+            ),
+            "displacement": minimal_config.displacement.model_copy(
+                update={"model_path": model_path}
+            ),
+        }
+    )
+    state = ExperimentState()
+    fake_fg = FakeFunctionGenerator()
+    devices = _build_devices(state)
+    devices["function_generator"] = fake_fg
+
+    result = Orchestrator(config=cfg, devices=devices, state=state).run()
+
+    assert result.status is ExperimentStatus.COMPLETED, result.failure_reason
+    assert ("set_amplitude_vpp", 2.0) in fake_fg.calls
+    step = next((result.experiment_dir.root / "steps").iterdir())
+    meta = json.loads((step / "step.json").read_text())
+    assert meta["target_displacement_um"] == 2000.0
+    assert meta["set_amplitude_vpp"] == 2.0
+    runs_row = (result.experiment_dir.root / "runs.csv").read_text().splitlines()[1]
+    assert runs_row.endswith(";2000.0")
 
 
 def test_combo_folder_exists_before_state_advances(
@@ -237,6 +456,7 @@ def test_combo_folder_exists_before_state_advances(
             set_speed_rpm: int,
             set_frequency_hz: float,
             set_amplitude_vpp: float,
+            target_displacement_um: float | None = None,
         ) -> None:
             if combo_index > 1:
                 expected = combo_folder_name(
@@ -248,6 +468,7 @@ def test_combo_folder_exists_before_state_advances(
                 set_speed_rpm=set_speed_rpm,
                 set_frequency_hz=set_frequency_hz,
                 set_amplitude_vpp=set_amplitude_vpp,
+                target_displacement_um=target_displacement_um,
             )
 
     cfg = minimal_config.model_copy(

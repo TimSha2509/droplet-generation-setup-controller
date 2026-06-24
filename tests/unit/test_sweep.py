@@ -1,4 +1,4 @@
-from droplet_lab.sweep import expand_sweep
+from droplet_lab.sweep import RANDOMIZATION_ALGORITHM, expand_sweep
 
 
 def test_expand_yields_full_cross_product_in_rpm_freq_amp_order() -> None:
@@ -12,6 +12,7 @@ def test_expand_yields_full_cross_product_in_rpm_freq_amp_order() -> None:
     assert [c.set_speed_rpm for c in combos] == [200, 200, 200, 200, 800, 800, 800, 800]
     assert [c.frequency_hz for c in combos] == [20, 20, 25, 25, 20, 20, 25, 25]
     assert [c.amplitude_vpp for c in combos] == [3, 5, 3, 5, 3, 5, 3, 5]
+    assert [c.target_displacement_um for c in combos] == [None] * 8
 
 
 def test_first_combo_changed_is_initial() -> None:
@@ -39,6 +40,59 @@ def test_changed_flag_tracks_outer_to_inner() -> None:
     ]
 
 
+def test_randomized_sweep_uses_known_fisher_yates_order() -> None:
+    combos = expand_sweep(
+        speeds_rpm=[200, 800],
+        frequencies_hz=[20.0, 25.0],
+        amplitudes_vpp=[3.0, 5.0],
+        hold_s=1.0,
+        randomize=True,
+    )
+    assert RANDOMIZATION_ALGORITHM == "Fisher-Yates shuffle using Python random.Random(seed=0)"
+    assert [c.combo_index for c in combos] == [5, 2, 6, 3, 1, 4, 8, 7]
+    assert [(c.set_speed_rpm, c.frequency_hz, c.amplitude_vpp) for c in combos] == [
+        (800, 20.0, 3.0),
+        (200, 20.0, 5.0),
+        (800, 20.0, 5.0),
+        (200, 25.0, 3.0),
+        (200, 20.0, 3.0),
+        (200, 25.0, 5.0),
+        (800, 25.0, 5.0),
+        (800, 25.0, 3.0),
+    ]
+
+
+def test_randomized_sweep_recomputes_changed_flags_for_execution_order() -> None:
+    combos = expand_sweep(
+        speeds_rpm=[200, 800],
+        frequencies_hz=[20.0, 25.0],
+        amplitudes_vpp=[3.0, 5.0],
+        hold_s=1.0,
+        randomize=True,
+    )
+    assert [c.changed for c in combos] == [
+        "initial",
+        "rpm",
+        "rpm",
+        "rpm",
+        "freq",
+        "freq",
+        "rpm",
+        "amp",
+    ]
+
+
+def test_randomized_sweep_keeps_ordered_folder_indices() -> None:
+    combos = expand_sweep(
+        speeds_rpm=[200, 800],
+        frequencies_hz=[20.0, 25.0],
+        amplitudes_vpp=[3.0, 5.0],
+        hold_s=1.0,
+        randomize=True,
+    )
+    assert sorted(c.combo_index for c in combos) == list(range(1, 9))
+
+
 def test_combo_index_is_one_based_and_consecutive() -> None:
     combos = expand_sweep(
         speeds_rpm=[1], frequencies_hz=[1.0], amplitudes_vpp=[1.0, 2.0, 3.0], hold_s=1.0
@@ -64,3 +118,34 @@ def test_duplicate_amplitude_still_classified_as_amp_step() -> None:
         speeds_rpm=[200], frequencies_hz=[20.0], amplitudes_vpp=[3.0, 3.0], hold_s=1.0
     )
     assert [c.changed for c in combos] == ["initial", "amp"]
+
+
+def test_displacement_sweep_uses_resolved_amplitudes() -> None:
+    combos = expand_sweep(
+        speeds_rpm=[200],
+        frequencies_hz=[10.0, 20.0],
+        displacements_um=[1000.0, 2000.0],
+        resolved_amplitudes_vpp={
+            (10.0, 1000.0): 1.0,
+            (10.0, 2000.0): 2.0,
+            (20.0, 1000.0): 1.5,
+            (20.0, 2000.0): 2.5,
+        },
+        hold_s=1.0,
+    )
+
+    assert [c.amplitude_vpp for c in combos] == [1.0, 2.0, 1.5, 2.5]
+    assert [c.target_displacement_um for c in combos] == [1000.0, 2000.0, 1000.0, 2000.0]
+    assert [c.changed for c in combos] == ["initial", "amp", "freq", "amp"]
+
+
+def test_displacement_sweep_requires_resolved_amplitudes() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="resolved_amplitudes"):
+        expand_sweep(
+            speeds_rpm=[200],
+            frequencies_hz=[10.0],
+            displacements_um=[1000.0],
+            hold_s=1.0,
+        )

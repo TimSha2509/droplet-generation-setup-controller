@@ -55,6 +55,7 @@ class ScaleWorker:
                             set_frequency_hz=snap.set_frequency_hz,
                             set_amplitude_vpp=snap.set_amplitude_vpp,
                             weight_g=self._scale.read_weight_g(),
+                            target_displacement_um=snap.target_displacement_um,
                         )
                     )
                     next_log = now + self._interval

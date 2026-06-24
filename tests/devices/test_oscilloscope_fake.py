@@ -28,9 +28,20 @@ def test_measure_returns_finite_values() -> None:
 def test_vpp_increases_with_rpm() -> None:
     state = ExperimentState()
     with FakeOscilloscope(state=state, seed=0, noise_amplitude=0.0) as scope:
-        state.update(combo_index=1, set_speed_rpm=100, set_frequency_hz=20.0, set_amplitude_vpp=3.0)
+        state.update(combo_index=1, set_speed_rpm=100, set_frequency_hz=20.0, set_amplitude_vpp=0.0)
         low = scope.measure().vpp_v
-        state.update(combo_index=2, set_speed_rpm=900, set_frequency_hz=20.0, set_amplitude_vpp=3.0)
+        state.update(combo_index=2, set_speed_rpm=900, set_frequency_hz=20.0, set_amplitude_vpp=0.0)
+        high = scope.measure().vpp_v
+    assert low is not None and high is not None
+    assert high > low
+
+
+def test_vpp_increases_with_amplitude_when_set() -> None:
+    state = ExperimentState()
+    with FakeOscilloscope(state=state, seed=0, noise_amplitude=0.0) as scope:
+        state.update(combo_index=1, set_speed_rpm=100, set_frequency_hz=20.0, set_amplitude_vpp=1.0)
+        low = scope.measure().vpp_v
+        state.update(combo_index=2, set_speed_rpm=100, set_frequency_hz=20.0, set_amplitude_vpp=4.0)
         high = scope.measure().vpp_v
     assert low is not None and high is not None
     assert high > low

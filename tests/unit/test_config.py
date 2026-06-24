@@ -9,6 +9,7 @@ from droplet_lab.config import (
     MAX_AMPLITUDE_VPP,
     CameraConfig,
     DevicesConfig,
+    DisplacementConfig,
     ExperimentConfig,
     FunctionGeneratorConfig,
     OscilloscopeConfig,
@@ -16,6 +17,7 @@ from droplet_lab.config import (
     PumpConfig,
     ScaleConfig,
     SweepConfig,
+    TimingConfig,
     VibrometerConfig,
     load_experiment,
 )
@@ -56,6 +58,12 @@ def test_minimal_config_validates(tmp_path: Path) -> None:
     assert cfg.experiment_id == "TEST_01"
     assert cfg.vibrometer.factor_um_per_v == 5280
     assert cfg.sweep.speeds_rpm == [200, 250]
+    assert cfg.sweep.amplitudes_vpp == [3.0, 5.0]
+    assert cfg.sweep.displacements_um is None
+    assert cfg.sweep.random is False
+    assert cfg.displacement.amplifier_gain == 2.0
+    assert cfg.displacement.validation_threshold_percent == 10.0
+    assert cfg.timing.wait_time_camera == 0.0
     assert cfg.devices.function_generator.channel == 1
     assert cfg.devices.scale.enabled is False
 
@@ -93,6 +101,47 @@ def test_empty_amplitudes_rejected(tmp_path: Path) -> None:
         ExperimentConfig.model_validate(data)
 
 
+def test_displacement_sweep_requires_model_path(tmp_path: Path) -> None:
+    data = _minimal_dict(tmp_path)
+    data["sweep"].pop("amplitudes_vpp")
+    data["sweep"]["displacements_um"] = [1000.0]
+    with pytest.raises(ValidationError) as exc:
+        ExperimentConfig.model_validate(data)
+    assert "model_path" in str(exc.value)
+
+
+def test_displacement_sweep_validates_with_model_path(tmp_path: Path) -> None:
+    data = _minimal_dict(tmp_path)
+    data["sweep"].pop("amplitudes_vpp")
+    data["sweep"]["displacements_um"] = [1000.0, 1500.0]
+    data["displacement"] = {"model_path": str(tmp_path / "model.json")}
+
+    cfg = ExperimentConfig.model_validate(data)
+
+    assert cfg.sweep.amplitudes_vpp is None
+    assert cfg.sweep.displacements_um == [1000.0, 1500.0]
+    assert cfg.displacement.model_path == (tmp_path / "model.json").resolve()
+
+
+def test_sweep_rejects_both_amplitudes_and_displacements(tmp_path: Path) -> None:
+    data = _minimal_dict(tmp_path)
+    data["sweep"]["displacements_um"] = [1000.0]
+    data["displacement"] = {"model_path": str(tmp_path / "model.json")}
+    with pytest.raises(ValidationError) as exc:
+        ExperimentConfig.model_validate(data)
+    assert "exactly one" in str(exc.value)
+
+
+def test_displacement_config_defaults() -> None:
+    cfg = DisplacementConfig()
+    assert cfg.amplifier_gain == 2.0
+    assert cfg.calibration_start_hz == 10.0
+    assert cfg.calibration_stop_hz == 120.0
+    assert cfg.calibration_step_hz == 10.0
+    assert cfg.measurement_s == 10.0
+    assert cfg.validation_threshold_percent == 10.0
+
+
 def test_speed_above_limit_rejected(tmp_path: Path) -> None:
     data = _minimal_dict(tmp_path)
     data["sweep"]["speeds_rpm"] = [1500]
@@ -126,10 +175,12 @@ def test_unknown_field_rejected(tmp_path: Path) -> None:
 
 def test_load_experiment_from_yaml(tmp_path: Path) -> None:
     data = _minimal_dict(tmp_path)
+    data["sweep"]["random"] = True
     yaml_path = tmp_path / "exp.yaml"
     yaml_path.write_text(yaml.safe_dump(data))
     cfg = load_experiment(yaml_path)
     assert cfg.experiment_id == "TEST_01"
+    assert cfg.sweep.random is True
 
 
 def test_pump_config_defaults() -> None:
@@ -141,6 +192,45 @@ def test_function_generator_defaults() -> None:
     cfg = FunctionGeneratorConfig(port="COM4")
     assert cfg.channel == 1
     assert cfg.baudrate == 115200
+
+
+def test_timing_wait_time_camera_accepts_zero_and_positive() -> None:
+    zero = TimingConfig(
+        stabilization_rpm_change_s=0.0,
+        stabilization_freq_change_s=0.0,
+        stabilization_amp_change_s=0.0,
+        image_interval_s=0.5,
+        wait_time_camera=0.0,
+    )
+    positive = zero.model_copy(update={"wait_time_camera": 2.5})
+    assert zero.wait_time_camera == 0.0
+    assert positive.wait_time_camera == 2.5
+
+
+def test_timing_wait_time_camera_rejects_negative() -> None:
+    with pytest.raises(ValidationError):
+        TimingConfig(
+            stabilization_rpm_change_s=0.0,
+            stabilization_freq_change_s=0.0,
+            stabilization_amp_change_s=0.0,
+            image_interval_s=0.5,
+            wait_time_camera=-0.1,
+        )
+
+
+def test_camera_config_defaults_to_digicam_trigger() -> None:
+    cfg = CameraConfig()
+    assert cfg.trigger_backend == "digicam"
+    assert cfg.shutter_port is None
+    assert cfg.shutter_baudrate == 9600
+    assert cfg.shutter_pulse_ms == 300
+    assert cfg.shutter_read_timeout_s == 2.0
+
+
+def test_arduino_trigger_requires_shutter_port() -> None:
+    with pytest.raises(ValidationError) as exc:
+        CameraConfig(trigger_backend="arduino")
+    assert "shutter_port" in str(exc.value)
 
 
 def test_scale_defaults() -> None:
@@ -182,3 +272,4 @@ def test_vibrometer_factor_must_be_positive() -> None:
 def test_sweep_config_standalone() -> None:
     s = SweepConfig(speeds_rpm=[200], frequencies_hz=[20.0], amplitudes_vpp=[3.0], hold_s=1.0)
     assert s.speeds_rpm == [200]
+    assert s.random is False

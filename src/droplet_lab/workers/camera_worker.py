@@ -19,7 +19,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from droplet_lab.devices.base import Camera
+from droplet_lab.devices.base import Camera, ContinuousCamera
 
 
 class CameraResultStatus(StrEnum):
@@ -56,6 +56,15 @@ def run_camera_capture(
     except Exception as e:
         log.exception("failed to set output folder")
         return CameraResult(status=CameraResultStatus.FAILED, captures=0, error=str(e))
+
+    if isinstance(camera, ContinuousCamera):
+        return _run_continuous_camera_capture(
+            camera=camera,
+            duration_s=duration_s,
+            latency_tolerance_s=latency_tolerance_s,
+            stop_event=stop_event,
+            log=log,
+        )
 
     start = time.monotonic()
     next_capture_at = start
@@ -95,3 +104,48 @@ def run_camera_capture(
             time.sleep(0.02)
 
     return CameraResult(status=CameraResultStatus.COMPLETED, captures=captures)
+
+
+def _run_continuous_camera_capture(
+    *,
+    camera: ContinuousCamera,
+    duration_s: float,
+    latency_tolerance_s: float,
+    stop_event: threading.Event,
+    log: object,
+) -> CameraResult:
+    try:
+        camera.start_continuous_capture()
+        log.info("continuous camera capture started")
+    except Exception as e:
+        log.exception("failed to start continuous camera capture")
+        return CameraResult(status=CameraResultStatus.FAILED, captures=0, error=str(e))
+
+    status = CameraResultStatus.COMPLETED
+    error: str | None = None
+    try:
+        deadline = time.monotonic() + duration_s
+        while time.monotonic() < deadline:
+            if stop_event.is_set():
+                log.info("stop signal received during continuous capture")
+                status = CameraResultStatus.ABORTED
+                break
+            time.sleep(0.02)
+    finally:
+        try:
+            camera.stop_continuous_capture()
+            log.info("continuous camera capture stopped")
+        except Exception as e:
+            log.exception("failed to stop continuous camera capture")
+            status = CameraResultStatus.FAILED
+            error = str(e)
+
+    if status is CameraResultStatus.COMPLETED and latency_tolerance_s > 0:
+        log.debug("waiting {} s latency tolerance", latency_tolerance_s)
+        deadline = time.monotonic() + latency_tolerance_s
+        while time.monotonic() < deadline:
+            if stop_event.is_set():
+                return CameraResult(status=CameraResultStatus.ABORTED, captures=1)
+            time.sleep(0.02)
+
+    return CameraResult(status=status, captures=1, error=error)

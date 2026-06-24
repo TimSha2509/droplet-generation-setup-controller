@@ -126,8 +126,8 @@ def test_oscilloscope_row_none_fields_serialize_as_empty_cells(tmp_path: Path) -
     lines = (folder / "oscilloscope.csv").read_text().splitlines()
     # data row should have empty trailing cells, NOT the string "None"
     assert "None" not in lines[1]
-    # exactly 5 trailing empty fields (frequency_hz..ch3_vrms_dc_v)
-    assert lines[1].endswith(";;;;;")
+    # exactly 6 trailing empty fields (frequency_hz..ch3_vrms_dc_v + target displacement)
+    assert lines[1].endswith(";;;;;;")
 
 
 def test_sanitize_filename_strips_unsafe_chars() -> None:

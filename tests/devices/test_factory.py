@@ -37,6 +37,7 @@ def test_simulate_returns_fakes() -> None:
 
 
 def test_real_returns_real_classes() -> None:
+    from droplet_lab.devices.camera_arduino import DigiCamArduinoCamera
     from droplet_lab.devices.camera_digicam import DigiCamCamera
     from droplet_lab.devices.oscilloscope_keysight import KeysightOscilloscope
     from droplet_lab.devices.pump_mzr7245 import MZR7245Pump
@@ -54,6 +55,11 @@ def test_real_returns_real_classes() -> None:
     assert isinstance(scope, KeysightOscilloscope)
     assert isinstance(cam, DigiCamCamera)
     assert isinstance(scale, SartoriusScale)
+
+    arduino_cam = build_camera(
+        CameraConfig(trigger_backend="arduino", shutter_port="COM7"), simulate=False
+    )
+    assert isinstance(arduino_cam, DigiCamArduinoCamera)
 
 
 def test_build_function_generator_returns_fake_when_simulating() -> None:

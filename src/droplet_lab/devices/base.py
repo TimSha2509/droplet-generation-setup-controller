@@ -10,7 +10,7 @@ from __future__ import annotations
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +39,12 @@ class Oscilloscope(Protocol, AbstractContextManager["Oscilloscope"]):
 class Camera(Protocol, AbstractContextManager["Camera"]):
     def set_output_folder(self, folder: Path) -> None: ...
     def trigger_capture(self) -> None: ...
+
+
+@runtime_checkable
+class ContinuousCamera(Protocol):
+    def start_continuous_capture(self) -> None: ...
+    def stop_continuous_capture(self) -> None: ...
 
 
 class Scale(Protocol, AbstractContextManager["Scale"]):

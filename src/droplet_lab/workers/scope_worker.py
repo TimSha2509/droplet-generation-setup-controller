@@ -75,6 +75,7 @@ class ScopeWorker:
                                 p2p_displacement_um=p2p,
                                 ch2_vrms_dc_v=m.ch2_vrms_dc_v,
                                 ch3_vrms_dc_v=m.ch3_vrms_dc_v,
+                                target_displacement_um=snap.target_displacement_um,
                             )
                         )
                     next_log = now + self._interval

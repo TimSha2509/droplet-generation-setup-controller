@@ -42,6 +42,7 @@ class ExperimentStateSnapshot:
     set_speed_rpm: int | None = None
     set_frequency_hz: float | None = None
     set_amplitude_vpp: float | None = None
+    target_displacement_um: float | None = None
 
 
 class ExperimentState:
@@ -76,6 +77,11 @@ class ExperimentState:
         with self._lock:
             return self._snapshot.set_amplitude_vpp
 
+    @property
+    def target_displacement_um(self) -> float | None:
+        with self._lock:
+            return self._snapshot.target_displacement_um
+
     def update(
         self,
         *,
@@ -83,6 +89,7 @@ class ExperimentState:
         set_speed_rpm: int,
         set_frequency_hz: float,
         set_amplitude_vpp: float,
+        target_displacement_um: float | None = None,
     ) -> None:
         with self._lock:
             self._snapshot = replace(
@@ -91,6 +98,7 @@ class ExperimentState:
                 set_speed_rpm=set_speed_rpm,
                 set_frequency_hz=set_frequency_hz,
                 set_amplitude_vpp=set_amplitude_vpp,
+                target_displacement_um=target_displacement_um,
             )
 
     def snapshot(self) -> ExperimentStateSnapshot:
