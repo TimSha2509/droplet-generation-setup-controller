@@ -32,38 +32,78 @@ const int SHUTTER_PIN = 8;
 
 const unsigned long DEFAULT_PULSE_MS = 300;
 const unsigned long MIN_PULSE_MS = 50;
-const unsigned long SERIAL_READ_TIMEOUT_MS = 100;
+const size_t COMMAND_BUFFER_SIZE = 64;
+
+char commandBuffer[COMMAND_BUFFER_SIZE];
+size_t commandLength = 0;
+bool commandOverflowed = false;
 
 void setup() {
   pinMode(SHUTTER_PIN, OUTPUT);
   digitalWrite(SHUTTER_PIN, LOW);
 
   Serial.begin(9600);
-  Serial.setTimeout(SERIAL_READ_TIMEOUT_MS);
   Serial.println("READY shutter-v2");
 }
 
 void loop() {
-  if (Serial.available() <= 0) {
+  while (Serial.available() > 0) {
+    char c = (char)Serial.read();
+
+    if (c == '\r') {
+      continue;
+    }
+
+    if (c == '\n') {
+      commandBuffer[commandLength] = '\0';
+      handleCommand(commandBuffer);
+      commandLength = 0;
+      commandOverflowed = false;
+      continue;
+    }
+
+    if (commandLength >= COMMAND_BUFFER_SIZE - 1) {
+      commandOverflowed = true;
+      continue;
+    }
+
+    commandBuffer[commandLength] = c;
+    commandLength++;
+  }
+}
+
+void handleCommand(char *rawCommand) {
+  if (commandOverflowed) {
+    Serial.println("ERR command too long");
     return;
   }
 
-  String command = Serial.readStringUntil('\n');
-  command.trim();
+  char *command = trimWhitespace(rawCommand);
 
-  if (command.length() == 0) {
+  if (command[0] == '\0') {
     return;
   }
 
-  if (command.startsWith("ping ")) {
-    String id = command.substring(5);
-    id.trim();
+  char original[COMMAND_BUFFER_SIZE];
+  copyText(original, command, COMMAND_BUFFER_SIZE);
+
+  char *args = firstArg(command);
+
+  if (equalsText(command, "ping")) {
+    if (args == NULL || args[0] == '\0') {
+      Serial.println("ERR missing ping id");
+      return;
+    }
     Serial.print("OK ping ");
-    Serial.println(id);
+    Serial.println(args);
     return;
   }
 
-  if (command == "shoot") {
+  if (equalsText(command, "shoot")) {
+    if (args != NULL && args[0] != '\0') {
+      handleShoot(args);
+      return;
+    }
     triggerShutter(DEFAULT_PULSE_MS);
     Serial.print("OK shoot ");
     Serial.print(DEFAULT_PULSE_MS);
@@ -71,35 +111,24 @@ void loop() {
     return;
   }
 
-  if (command.startsWith("shoot ")) {
-    handleShoot(command.substring(6));
+  if (equalsText(command, "press") || equalsText(command, "bulb_on")) {
+    handlePress(args);
     return;
   }
 
-  if (command == "press" || command == "bulb_on" || command.startsWith("press ")) {
-    handlePress(command);
-    return;
-  }
-
-  if (command == "release" || command == "bulb_off" || command.startsWith("release ")) {
-    handleRelease(command);
+  if (equalsText(command, "release") || equalsText(command, "bulb_off")) {
+    handleRelease(args);
     return;
   }
 
   Serial.print("ERR unknown command ");
-  Serial.println(command);
+  Serial.println(original);
 }
 
-void handlePress(String command) {
+void handlePress(char *id) {
   digitalWrite(SHUTTER_PIN, HIGH);
 
-  String id = "";
-  if (command.startsWith("press ")) {
-    id = command.substring(6);
-    id.trim();
-  }
-
-  if (id.length() > 0) {
+  if (id != NULL && id[0] != '\0') {
     Serial.print("OK press ");
     Serial.println(id);
   } else {
@@ -107,16 +136,10 @@ void handlePress(String command) {
   }
 }
 
-void handleRelease(String command) {
+void handleRelease(char *id) {
   digitalWrite(SHUTTER_PIN, LOW);
 
-  String id = "";
-  if (command.startsWith("release ")) {
-    id = command.substring(8);
-    id.trim();
-  }
-
-  if (id.length() > 0) {
+  if (id != NULL && id[0] != '\0') {
     Serial.print("OK release ");
     Serial.println(id);
   } else {
@@ -124,27 +147,22 @@ void handleRelease(String command) {
   }
 }
 
-void handleShoot(String args) {
-  args.trim();
+void handleShoot(char *args) {
+  char *pulseText = trimWhitespace(args);
+  char *id = firstArg(pulseText);
 
-  int separator = args.indexOf(' ');
-  String pulseText = args;
-  String id = "";
-
-  if (separator >= 0) {
-    pulseText = args.substring(0, separator);
-    id = args.substring(separator + 1);
-    id.trim();
-  }
-
-  unsigned long pulseMs = pulseText.toInt();
+  unsigned long pulseMs = parseUnsignedLong(pulseText);
   if (pulseMs < MIN_PULSE_MS) {
     pulseMs = MIN_PULSE_MS;
   }
 
+  if (id != NULL) {
+    id = trimWhitespace(id);
+  }
+
   triggerShutter(pulseMs);
 
-  if (id.length() > 0) {
+  if (id != NULL && id[0] != '\0') {
     Serial.print("OK shoot ");
     Serial.print(id);
     Serial.print(" ");
@@ -161,4 +179,61 @@ void triggerShutter(unsigned long pulseMs) {
   digitalWrite(SHUTTER_PIN, HIGH);
   delay(pulseMs);
   digitalWrite(SHUTTER_PIN, LOW);
+}
+
+bool equalsText(const char *left, const char *right) {
+  return strcmp(left, right) == 0;
+}
+
+bool isWhitespace(char c) {
+  return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
+char *trimWhitespace(char *text) {
+  while (isWhitespace(*text)) {
+    text++;
+  }
+
+  char *end = text + strlen(text);
+  while (end > text && isWhitespace(*(end - 1))) {
+    end--;
+  }
+  *end = '\0';
+  return text;
+}
+
+char *firstArg(char *text) {
+  while (*text != '\0' && !isWhitespace(*text)) {
+    text++;
+  }
+
+  if (*text == '\0') {
+    return NULL;
+  }
+
+  *text = '\0';
+  text++;
+  return trimWhitespace(text);
+}
+
+unsigned long parseUnsignedLong(const char *text) {
+  unsigned long value = 0;
+  while (*text >= '0' && *text <= '9') {
+    value = (value * 10) + (unsigned long)(*text - '0');
+    text++;
+  }
+  return value;
+}
+
+void copyText(char *dest, const char *src, size_t destSize) {
+  if (destSize == 0) {
+    return;
+  }
+
+  size_t i = 0;
+  while (i < destSize - 1 && src[i] != '\0') {
+    dest[i] = src[i];
+    i++;
+  }
+  dest[i] = '\0';
 }

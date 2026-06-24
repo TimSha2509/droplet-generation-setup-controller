@@ -1,4 +1,4 @@
-experiment_id: displacement_example
+experiment_id: TEST_DoE_Timestamp_Glycerol_90
 nozzle_id: 2.5mm_A
 
 vibrometer:
@@ -6,7 +6,7 @@ vibrometer:
 
 sweep:
   speeds_rpm: [1125]
-  frequencies_hz: [3.0, 6.0, 0.0]
+  frequencies_hz: [3.0, 6.0, 10.0]
   displacements_um: [2600.0, 2800,3000]
   hold_s: 20
   random: false
@@ -44,7 +44,7 @@ devices:
   camera:
     digicam_url: "http://localhost:5513"
     trigger_backend: arduino
-    shutter_port: COM7
+    shutter_port: COM8
     shutter_baudrate: 9600
     shutter_pulse_ms: 300
   function_generator:

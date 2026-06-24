@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased - 2026-06-24
+
+### Changed
+
+- Reworked the Arduino shutter v2 sketch to parse serial commands with a
+  fixed-size character buffer instead of heap-allocating `String` objects,
+  preventing repeated continuous-capture commands from being corrupted on the
+  controller.
+- Updated the active glycerol and displacement experiment YAMLs for the current
+  timestamped glycerol test setup, COM-port assignments, and displacement
+  frequency list.
+
 ## Unreleased - 2026-06-23
 
 Compared with `origin/codex/changelog-controller-updates`.

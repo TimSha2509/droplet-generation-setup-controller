@@ -1,4 +1,4 @@
-experiment_id: TEST_CAMERA
+experiment_id: TEST_DoE_Timestamp_Glycerol_90
 nozzle_id: 2.5mm_A
 
 vibrometer:
@@ -24,18 +24,18 @@ limits:
 
 devices:
   pump:
-    port: COM10
+    port: COM3
     baudrate: 9600
   oscilloscope:
     visa_resource: "USB0::0x2A8D::0x1778::MY55440264::0::INSTR"
   camera:
     digicam_url: "http://localhost:5513"
     trigger_backend: arduino
-    shutter_port: COM3
+    shutter_port: COM8
     shutter_baudrate: 9600
     shutter_pulse_ms: 300
   function_generator:
-    port: COM6
+    port: COM7
     channel: 1
   scale:
     enabled: true
